@@ -1,0 +1,29 @@
+# segredos — o .env real nunca vai para o git
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# banco local e dados brutos (o dossiê versionado fica em dados/**/*.md)
+*.sqlite3
+db.sqlite3
+dados/**/raw/
+dados/export/
+
+# node / front
+node_modules/
+dist/
+
+# logs e ambiente
+*.log
+.DS_Store
+.idea/
+.vscode/
