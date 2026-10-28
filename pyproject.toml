@@ -1,0 +1,39 @@
+[project]
+name = "investimentos"
+version = "0.1.0"
+description = "Aerogerador de agentes especializados em investimentos no Brasil"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = {text = "MIT"}
+dependencies = [
+    "django>=5.2,<6.0",
+    "djangorestframework>=3.18",
+    "pytest>=9.0",
+    "pytest-django>=4.0",
+    "ruff>=0.1+",
+    "mypy>=1.0",
+]
+
+[tool.uv.sources]
+django = { git = "https://github.com/django/django.git", tag = "stable/5.2.x" }
+djangorestframework = { git = "https://github.com/encode/django-rest-framework.git", tag = "3.18.x" }
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "investimentos.settings.base"
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+include = ["*.py"]
+exclude = ["__pycache__", ".venv", "node_modules"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["**/*.py"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
