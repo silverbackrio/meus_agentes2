@@ -1,4 +1,5 @@
 """Configurações base do Django (compartilhadas)."""
+
 import os
 from pathlib import Path
 

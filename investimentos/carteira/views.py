@@ -1,6 +1,7 @@
 """
 Views do app carteira — API v1 /api/v1/carteira/.
 """
+
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response

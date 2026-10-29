@@ -1,8 +1,9 @@
 ---
 status: ativa
-atualizada_em: 2026-10-27
+atualizada_em: 2026-10-28
 responsavel: projeto
 ---
+
 # Specs
 
 Índice das especificações deste projeto. A spec é a **autoridade final** sobre o que os agentes
@@ -12,7 +13,7 @@ podem afirmar sobre cada classe de ativo: skill e agente implementam a spec; nun
 
 | Spec | Status | Atualizada em | Associa |
 |---|---|---|---|
-| [aplicacao](aplicacao.md) | ativa | 2026-10-27 | agente `dev-backend`, agente `dev-frontend` |
+| [aplicacao](aplicacao.md) | ativa | 2026-10-28 | agente `dev-backend`, agente `dev-frontend` |
 | [dominio-e-fontes](dominio-e-fontes.md) | ativa | 2026-10-27 | todas as skills |
 | [fontes-de-dados](fontes-de-dados.md) | ativa | 2026-10-27 | `fontes-de-dados-api`, agente `fontes-de-dados` |
 | [ambiente-e-versoes](ambiente-e-versoes.md) | ativa | 2026-10-27 | agente `dev-backend`, skill `backend-python-django` |

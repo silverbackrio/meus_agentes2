@@ -1,16 +1,19 @@
 """
 Modelos do app carteira.
 
-Segue `specs/carteira-e-risco.md` e `specs/dominio-e-fontes.md` para o modelo
+Segue specs/carteira-e-risco.md e specs/dominio-e-fontes.md para o modelo
 de carteira: objetivo, perfil, política, posições e operações.
 V1 sem login: campo owner já nasce no schema para a v2 não exigir migração.
 """
+
 from django.conf import settings
 from django.db import models
 
 
-class MetaMixin:
-    """Mixin para todos os modelos têm owner (user ou_none na v1)."""
+class BaseModel(models.Model):
+    """Modelo base abstrato com owner, para todos os modelos não abstratos
+    do app carteira. Herdar dele garante que todo mundo tem `owner`.
+    """
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -25,35 +28,36 @@ class MetaMixin:
         abstract = True
 
 
-class Objetivo(MetaMixin):
+class Objetivo(BaseModel):
     """Objetivo financeiro: valor-alvo, unidade (real/nominal), horizonte."""
 
-    UNIDADE_REAIS = "reais"
-    UNIDADE_NOMINAIS = "nominais"
-    UNIDADE_CHOICES = [
-        (UNIDADE_REAIS, "Reais"),
-        (UNIDADE_NOMINAIS, "Nominais"),
-    ]
-
-    nome = models.CharField("nome", max_length=200)
-    valor_alvo = models.DecimalField("valor alvo", max_digits=20, decimal_places=2)
+    nome = models.CharField(max_length=200)
+    valor_alvo = models.DecimalField(max_digits=20, decimal_places=2)
     unidade = models.CharField(
-        "unidade", max_length=20, choices=UNIDADE_CHOICES, default=UNIDADE_REAIS
+        max_length=20,
+        choices=[
+            ("reais", "Reais"),
+            ("nominais", "Nominais"),
+        ],
+        default="reais",
     )
-    horizonte_dias = models.PositiveIntegerField("horizonte em dias", default=360)
-    liquidez_necessaria = models.DecimalField(
-        "liquidez necessária", max_digits=12, decimal_places=2, default=0
-    )
+    horizonte_dias = models.PositiveIntegerField(default=360)
+    liquidez_necessary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "objetivo"
+        verbose_name_plural = "objetivos"
+        ordering = ["nome"]
 
     def __str__(self):
         return f"{self.nome} — {self.valor_alvo} {self.unidade}"
 
 
-class Perfil(MetaMixin):
+class Perfil(BaseModel):
     """Perfil de investidor: tolerância, capacidade, restrições."""
 
     tolerancia = models.CharField(
-        "tolerância", max_length=20,
+        max_length=20,
         choices=[
             ("baixa", "Baixa"),
             ("media", "Média"),
@@ -62,7 +66,7 @@ class Perfil(MetaMixin):
         default="media",
     )
     capacidade_risco = models.CharField(
-        "capacidade de risco", max_length=20,
+        max_length=20,
         choices=[
             ("baixa", "Baixa"),
             ("media", "Média"),
@@ -70,57 +74,55 @@ class Perfil(MetaMixin):
         ],
         default="media",
     )
-    restricoes = models.TextField(
-        "restrições", blank=True, default=""
-    )
+    restricoes = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "perfil"
+        verbose_name_plural = "perfis"
+        ordering = ["tolerancia"]
 
     def __str__(self):
         return f"Perfil {self.tolerancia}/{self.capacidade_risco}"
 
 
-class Politica(MetaMixin):
-    """Política de alocação: classe, peso alvo, faixa de tolerância."""
-
-    CLASSE_CHOICES = [
-        ("acoes", "Ações"),
-        ("renda_fixa", "Renda Fixa"),
-        ("fundo", "Fundos"),
-        ("fiis", "FIIs"),
-        ("previdencia", "Previdência"),
-        ("caixa", "Caixa"),
-        ("cambio", "Câmbio"),
-        ("ouro", "Ouro"),
-        ("petroleo", "Petróleo"),
-        ("vetor", "Vetor (ETFs/Derivados)"),
-    ]
+class Politica(BaseModel):
+    """Política de alocação: classe, peso alvo, faixa mínima e máxima."""
 
     classe = models.CharField(
-        "classe", max_length=20, choices=CLASSE_CHOICES
+        max_length=20,
+        choices=[
+            ("acoes", "Ações"),
+            ("renda_fixa", "Renda Fixa"),
+            ("fundo", "Fundos"),
+            ("fiis", "FIIs"),
+            ("previdencia", "Previdência"),
+            ("caixa", "Caixa"),
+            ("cambio", "Câmbio"),
+            ("ouro", "Ouro"),
+            ("petroleo", "Petróleo"),
+            ("vetor", "Vetor (ETFs/Derivados)"),
+        ],
     )
-    peso_alvo = models.DecimalField(
-        "peso alvo (%)", max_digits=6, decimal_places=2
-    )
-    faixa_min = models.DecimalField(
-        "faixa mínima (%)", max_digits=6, decimal_places=2
-    )
-    faixa_max = models.DecimalField(
-        "faixa máxima (%)", max_digits=6, decimal_places=2
-    )
+    peso_alvo = models.DecimalField(max_digits=6, decimal_places=2)
+    faixa_min = models.DecimalField(max_digits=6, decimal_places=2)
+    faixa_max = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        verbose_name = "política"
+        verbose_name_plural = "políticas"
+        ordering = ["classe"]
 
     def __str__(self):
-        return f"{self.get_classe_display()}: {self.peso_alvo}%"
+        return f"{self.classe}: {self.peso_alvo}%"
 
 
-class Classe(MetaMixin):
+class Classe(models.Model):
     """Classe de ativo para fins de risco e alocação."""
 
-    nome = models.CharField("nome", max_length=200, unique=True)
-    fator_risco = models.CharField(
-        "fator de risco", max_length=100, default="",
-        help_text="Fator de risco associado (juros, inflação, crédito, câmbio, etc.)"
-    )
+    nome = models.CharField(max_length=200, unique=True)
+    fator_risco = models.CharField(max_length=100, default="")
     liquidez = models.CharField(
-        "liquidez", max_length=50,
+        max_length=50,
         choices=[
             ("alta", "Alta"),
             ("media", "Média"),
@@ -129,50 +131,40 @@ class Classe(MetaMixin):
         default="alta",
     )
 
+    class Meta:
+        verbose_name = "classe"
+        verbose_name_plural = "classes"
+        ordering = ["nome"]
+
     def __str__(self):
         return self.nome
 
 
-class Posicao(MetaMixin):
+class Posicao(BaseModel):
     """Posição em um ativo: quantidade, custo médio, moeda, instituição."""
 
-    ativo = models.CharField("ativo", max_length=300)
-    classe = models.CharField("classe", max_length=200, default="acoes")
-    quantidade = models.DecimalField(
-        "quantidade", max_digits=20, decimal_places=8, default=0
-    )
-    preco_medio = models.DecimalField(
-        "preço médio", max_digits=20, decimal_places=8, default=0
-    )
-    moeda = models.CharField("moeda", max_length=10, default="BRL")
-    instituicao = models.CharField(
-        "instituição", max_length=200, blank=True, default=""
-    )
-    data_criacao = models.DateTimeField("data de criação", auto_now_add=True)
+    ativo = models.CharField(max_length=300)
+    classe = models.CharField(max_length=200, default="acoes")
+    quantidade = models.DecimalField(max_digits=20, decimal_places=8, default=0)
+    preco_medio = models.DecimalField(max_digits=20, decimal_places=8, default=0)
+    moeda = models.CharField(max_length=10, default="BRL")
+    instituicao = models.CharField(max_length=200, blank=True, default="")
+    data_criacao = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "posição"
+        verbose_name_plural = "posições"
+        ordering = ["-data_criacao"]
 
     def __str__(self):
         return f"{self.ativo} — {self.quantidade} {self.moeda}"
 
 
 class Operacao(models.Model):
-    """Operação de aplicação, resgate, venda, distribuição, etc.
+    """Operação de carteira: aplicação, resgate, venda, distribuição, etc.
 
-    Campos: evento, data, valor, base_de_calculo, aliquota, IOF, etc.
+    Campos: evento, data, valor, base_de_calculo, aliquota_ir, ir_ja_retido, iof, observacao.
     """
-    EVENTO_APLICACAO = "aplicacao"
-    EVENTO_RESGATE = "resgate"
-    EVENTO_VENDA = "venda"
-    EVENTO_DISTRIBUICAO = "distribuicao"
-    EVENTO_BENEFICIO = "beneficio"
-    EVENTO_AMORTIZACAO = "amortizacao"
-    EVENTO_CHOICES = [
-        (EVENTO_APLICACAO, "Aplicação"),
-        (EVENTO_RESGATE, "Resgate"),
-        (EVENTO_VENDA, "Venda"),
-        (EVENTO_DISTRIBUICAO, "Distribuição"),
-        (EVENTO_BENEFICIO, "Benefício"),
-        (EVENTO_AMORTIZACAO, "Amortização"),
-    ]
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -183,7 +175,7 @@ class Operacao(models.Model):
         default=None,
     )
     posicao = models.ForeignKey(
-        "self",
+        "carteira.Posicao",
         on_delete=models.CASCADE,
         related_name="operacoes",
         null=True,
@@ -191,23 +183,29 @@ class Operacao(models.Model):
         default=None,
     )
     evento = models.CharField(
-        "evento", max_length=30, choices=EVENTO_CHOICES, default=EVENTO_APLICACAO
+        max_length=30,
+        choices=[
+            ("aplicacao", "Aplicação"),
+            ("resgate", "Resgate"),
+            ("venda", "Venda"),
+            ("distribuicao", "Distribuição"),
+            ("beneficio", "Benefício"),
+            ("amortizacao", "Amortização"),
+        ],
+        default="aplicacao",
     )
-    data = models.DateField("data")
-    valor = models.DecimalField("valor", max_digits=20, decimal_places=2, default=0)
-    base_de_calculo = models.CharField(
-        "base de cálculo", max_length=50, default=""
-    )
-    aliquota_ir = models.DecimalField(
-        "alíquota IR (%)", max_digits=6, decimal_places=2, default=0
-    )
-    ir_ja_retido = models.DecimalField(
-        "IR já retido (R$)", max_digits=12, decimal_places=2, default=0
-    )
-    iof = models.DecimalField(
-        "IOF (%)", max_digits=6, decimal_places=2, default=0
-    )
-    observacao = models.TextField("observação", blank=True, default="")
+    data = models.DateField()
+    valor = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    base_de_calculo = models.CharField(max_length=50, default="")
+    aliquota_ir = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    ir_ja_retido = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    iof = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    observacao = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "operação"
+        verbose_name_plural = "operações"
+        ordering = ["-data"]
 
     def __str__(self):
-        return f"{self.get_evento_display()} {self.data}: {self.valor} {self.posicao.ativo if self.posicao else '?'}"
+        return f"{self.evento} {self.data}: {self.valor}"

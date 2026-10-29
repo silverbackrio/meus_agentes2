@@ -1,82 +1,42 @@
-"""
-Serializers do app market_data.
+"""Serializers do app market_data — contrato de leitura da API v1.
 
-Regra R2 (`specs/aplicacao.md`): toda resposta que traz número tem
-`valor`, `unidade`, `data_base` e `fonte`/`as_of` — sem exceção.
-Erro: `{erro, campo, sugestao}`.
+Regra R2 (`specs/aplicacao.md`): toda resposta que traz número entrega `valor`,
+`unidade`, `data_base`/`as_of` e a **proveniência** (fonte e licença, regra R9 de
+`specs/fontes-de-dados.md`). Aqui só modelamos a estrutura fixa; cobertura, gaps e
+pontos são montados na view, porque dependem do período pedido.
 """
+
 from rest_framework import serializers
 
-from .models import FetchLog, Observation, Serie, Source
+from .models import Serie, Source
 
 
 class SourceSerializer(serializers.ModelSerializer):
-    """Fonte de onde vêm os dados."""
+    """Fonte do dado — nome, tipo, URL e licença sempre visíveis (R9)."""
 
     class Meta:
         model = Source
-        fields = [
-            "id", "nome", "tipo", "url_base", "licenca",
-            "exige_chave", "cota_por_dia", "ativo", "observacao",
-        ]
+        fields = ["id", "nome", "tipo", "url_base", "licenca", "exige_chave", "cota"]
 
 
 class SerieSerializer(serializers.ModelSerializer):
-    """Série histórica."""
+    """Série com a fonte embutida: o leitor nunca precisa de uma segunda chamada.
 
-    source_nome = serializers.CharField(source="source.nome", read_only=True)
-    source_tipo = serializers.CharField(source="source.tipo", read_only=True)
+    O campo sai como `fonte` (em vez de `source`) porque a API inteira fala
+    português — o contrato da `specs/aplicacao.md` é em pt-BR.
+    """
+
+    fonte = SourceSerializer(source="source", read_only=True)
 
     class Meta:
         model = Serie
         fields = [
-            "id", "source", "source_nome", "source_tipo",
-            "codigo", "nome", "ativo", "unidade", "frequencia", "moeda",
-        ]
-
-
-class ObservationSerializer(serializers.ModelSerializer):
-    """Observação de uma série em uma data.
-
-    Regra R2: inclui `data_base`, `unidade` e `fonte` via `serie__source`.
-    """
-    data_base = serializers.DateField(source="data", read_only=True)
-    unidade = serializers.CharField(source="unidade", read_only=True)
-    fonte = serializers.SerializerMethodField()
-
-    def get_fonte(self, obj):
-        """Regra R9: proveniência obrigatória — fonte e URL de origem."""
-        if obj.serie and obj.serie.source:
-            return {
-                "nome": obj.serie.source.nome,
-                "tipo": obj.serie.source.tipo,
-                "url": obj.serie.source.url_base,
-                "licenca": obj.serie.source.licenca,
-            }
-        return {"nome": "", "tipo": "", "url": "", "licenca": ""}
-
-    class Meta:
-        model = Observation
-        fields = [
-            "id", "serie", "data", "data_base", "valor",
-            "unidade", "fetched_at", "fonte", "payload_hash",
-        ]
-
-
-class ObservationInputSerializer(serializers.Serializer):
-    """Entrada para ingestão de observação."""
-    serie_id = serializers.IntegerField()
-    data = serializers.DateField()
-    valor = serializers.DecimalField(max_digits=20, decimal_places=8)
-    unidade = serializers.CharField(max_length=100, required=False, default="")
-
-
-class FetchLogSerializer(serializers.ModelSerializer):
-    """Log de ingestão: source, dia, endpoint, status, itens, latência."""
-
-    class Meta:
-        model = FetchLog
-        fields = [
-            "id", "source", "dia", "endpoint",
-            "status", "itens", "latencia",
+            "id",
+            "fonte",
+            "codigo",
+            "nome",
+            "ativo",
+            "unidade",
+            "frequencia",
+            "moeda",
         ]

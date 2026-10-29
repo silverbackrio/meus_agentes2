@@ -1,6 +1,6 @@
 ---
 status: ativa
-atualizada_em: 2026-10-27
+atualizada_em: 2026-10-28
 ---
 # Spec: Aplicação
 
@@ -8,6 +8,30 @@ O que **construir**: estrutura do projeto, apps Django, contrato da API, página
 regras de implementação. É a referência do `dev-backend` e do `dev-frontend` — ela diz o que
 existe e como se conecta; o **cálculo** continua sendo autoridade da spec da classe de ativo e o
 **dado** da `fontes-de-dados.md`.
+
+## 0. Visão geral (entrevista de 27–28/10/2026)
+
+**Projeto:** base de conhecimento e especialização em investimentos no Brasil, cobrindo renda
+fixa, renda variável (ações, BDRs), fundos, ETFs e FIIs, previdência, câmbio/derivativos e
+gestão de carteira — mais a aplicação que os agentes constroem para o investidor usar.
+
+**Modelo do sistema:** (1) regras ficam nas specs e skills; (2) os agentes explicam e calculam
+com base nelas; (3) a aplicação Django guarda e expõe dado histórico, carteira, análise e
+configuração; (4) o frontend React consome a API; (5) a infraestrutura executa e protege o
+sistema; (6) as fontes externas alimentam o banco por ingestão controlada.
+
+**Princípios travadores:** dado real passado não muda e não se paga duas vezes; toda regra
+tributária com data e fonte; nada é estimado quando dá para calcular ou consultar; quem decide
+o aporte é o investidor, nunca o sistema; modularidade por padrão; segredo fora do código.
+
+**Bloco 1 da v1 (decidido na entrevista de 27/10/2026, caso BBAS3):** para quem já é
+acionista, a primeira tela entregue é **gestão de posição** — preço médio atual, P&L,
+simulador de novo preço médio, yield on cost projetado e consenso de mercado datado — e não
+uma tela genérica de descoberta de ativos.
+
+**Fora desta spec:** fórmula de cada classe (`specs/<classe>.md`), origem de dado
+(`specs/fontes-de-dados.md`), interpretador (`specs/ambiente-e-versoes.md`), o que pode ser
+afirmado (`specs/compliance-e-avisos.md`) e operação de servidor (`.agents/skills/infra-linux`).
 
 ## Escopo
 
@@ -62,18 +86,20 @@ pode virar obrigação de instalar tudo.
 ## Estrutura
 
 ```
-backend/
-  pyproject.toml            ← requires-python = ">=3.12,<3.15"
+raiz/
+  pyproject.toml            ← requires-python = ">=3.12,<3.15" + ruff/mypy
   .python-version           ← 3.14
+  pytest.ini                ← DJANGO_SETTINGS_MODULE + pythonpath
   manage.py
-  investimentos/            ← project: settings/, urls.py, wsgi.py, asgi.py
-  market_data/              ← app 1 — séries e observações (fontes-de-dados.md)
-  carteira/                 ← app 2 — objetivo, política, posições, operações
-  analise/                  ← app 3 — cálculos, métricas, cenários, dossiês
-  tests/                    ← testes por domínio, espelham as specs
-frontend/
-  package.json  vite.config.ts  src/
-dados/                      ← já existe: coletas datadas e export/ (R10 da fontes-de-dados)
+  investimentos_project/    ← project: settings/{base,dev,prod}.py, urls.py, wsgi, asgi
+  investimentos/            ← pacote dos apps (precisa de __init__.py)
+    market_data/            ← app 1 — séries, observações, payload e fetch_log
+    carteira/               ← app 2 — objetivo, perfil, política, posições, operações
+    analise/                ← app 3 — cálculos, métricas, cenários, dossiês
+  .agents/scripts/          ← ingestão (script CLI, R3)
+  frontend/                 ← Vite + React (a criar)
+  dados/                    ← coletas datadas e export/ (R10 da fontes-de-dados)
+  specs/  GLOSSARY.md  CONTEXT.md  ARCHITECTURE_DECISIONS.md
 ```
 
 Regra de dependência: `analise` **lê** `market_data` e `carteira`; `carteira` **lê**
@@ -129,6 +155,7 @@ Série devolve `unidade`, `frequencia`, `moeda`, `licenca`, `pontos: [[data, val
 | GET | `/carteira/resumo` | posições, custo médio, pesos atuais vs política, P&L com `as_of` |
 | POST | `/carteira/operacoes` | registrar operação (valida evento, data, base de cálculo) |
 | GET | `/analise/metricas/?periodo=&frequencia=` | valor + fórmula usada + entradas + data-base |
+| POST | `/analise/simular/` | novo preço médio, YoC e projeção de renda passiva (entrada do usuário, sem gravação) |
 | POST | `/analise/cenarios` | choque por premissa datada, impacto em R$ e % |
 | GET | `/analise/dossies/` · `/analise/dossies/{data}` | dossiês datados |
 | GET | `/comparar?ativos=&base=liquida` | comparação com prazos e base equivalenciados |
@@ -200,6 +227,8 @@ Princípios P1–P5 valem aqui.
 
 ## Ordem de implementação
 
+0. **Bloco 1 da v1 (prioridade da entrevista 27/10):** `analise/calculos.py` puro com preço
+   médio, YoC e projeção de renda passiva + `POST /analise/simular/` + testes dourados.
 1. Scaffold do backend: `uv`, Django 5.2, DRF, settings, três apps vazios, `pytest` verde.
 2. `market_data`: modelos + `manage.py ingest` com **uma** série (PTAX USD/BRL) + `export_series`.
 3. Scaffold do frontend: Vite + React, cliente de API, tela `/dados` com cobertura e gaps.
@@ -221,6 +250,7 @@ Princípios P1–P5 valem aqui.
 - [ ] Nenhum módulo importa o interior de outro módulo; a dependência entre apps é em uma direção.
 - [ ] Toda dependência nova justificada (o que substitui / quem mantém); o cálculo usa só stdlib.
 - [ ] Roda igual em dev e em produção sem editar código (só configuração).
+- [ ] `manage.py check` e `ruff check .` limpos, e `pytest` com 100% verde antes do commit.
 
 ## Lacunas
 

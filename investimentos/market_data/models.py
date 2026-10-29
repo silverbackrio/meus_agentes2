@@ -1,151 +1,134 @@
 """
 Modelos do app market_data.
 
-Segue a spec `specs/fontes-de-dados.md` para o modelo de dados de mercado.
-Toda escrita acontece via script de ingestão (manage.py ingest, run_terminal_command),
-nunca via view ou API pública — regra R12.
+Segue specs/fontes-de-dados.md para o modelo de dados de mercado.
+Toda escrita acontece via manage.py ingest ou script de ingestão rodado via
+run_terminal_command, nunca via view ou API pública — regra R12.
 """
+
 from django.db import models
+
+# Regra R1 de specs/fontes-de-dados.md: fato passado é imutável. Isso se materializa
+# em duas restrições abaixo: `Serie` é única por (source, codigo) e `Observation`
+# é única por (serie, data) — a idempotência que faz rebuscar não duplicar linha.
+
+TIPO_CHOICES = (
+    ("api", "API"),
+    ("arquivo", "Arquivo"),
+    ("manual", "Manual"),
+)
+
+FREQUENCIA_CHOICES = (
+    ("diario", "Diário"),
+    ("semanal", "Semanal"),
+    ("mensal", "Mensal"),
+    ("anual", "Anual"),
+)
 
 
 class Source(models.Model):
-    """Fonte de onde vêm os dados: API, arquivo ou entrada manual.
+    """Fonte de onde vêm os dados: API, arquivo ou entrada manual."""
 
-    Campos obrigatórios: nome, tipo, licença. Chaves nunca aqui (só no .env).
-    """
-    TIPO_API = "api"
-    TIPO_ARQUIVO = "arquivo"
-    TIPO_MANUAL = "manual"
-    TIPO_CHOICES = [
-        (TIPO_API, "API"),
-        (TIPO_ARQUIVO, "Arquivo"),
-        (TIPO_MANUAL, "Manual"),
-    ]
-
-    nome = models.CharField("nome", max_length=200)
-    tipo = models.CharField(
-        "tipo", max_length=20, choices=TIPO_CHOICES, default=TIPO_API
-    )
-    url_base = models.URLField("URL base", blank=True, default="")
-    licenca = models.CharField("licença", max_length=300, default="")
-    exige_chave = models.BooleanField("exige chave de API", default=False)
-    cota_por_dia = models.PositiveIntegerField(
-        "cota máxima por dia", blank=True, null=True
-    )
-    ativo = models.CharField(
-        "ativo ou classe associada", max_length=200, blank=True, default=""
-    )
-    observacao = models.TextField("observação", blank=True, default="")
-
-    class Meta:
-        verbose_name = "fonte de dado"
-        verbose_name_plural = "fontes de dado"
+    nome = models.CharField(max_length=200)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default="api")
+    url_base = models.URLField(max_length=2000, blank=True, default="")
+    licenca = models.CharField(max_length=300, default="")
+    exige_chave = models.BooleanField(default=False)
+    cota = models.IntegerField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.nome} ({self.tipo})"
 
 
 class Serie(models.Model):
-    """Série histórica: código da fonte, nome, ativo, unidade, frequência.
+    """Série histórica: código da fonte, nome, ativo, unidade, frequência."""
 
-    Unique(source, codigo) — regra R2 da spec `fontes-de-dados.md`.
-    """
-    source = models.ForeignKey(
-        Source, on_delete=models.PROTECT, related_name="series"
-    )
-    codigo = models.CharField("código na fonte", max_length=200)
-    nome = models.CharField("nome da série", max_length=300, default="")
-    ativo = models.CharField("ativo", max_length=200, default="")
-    unidade = models.CharField("unidade", max_length=100, default="")
-    FREQUENCIA_CHOICES = [
-        ("diario", "Diário"),
-        ("semanal", "Semanal"),
-        ("mensal", "Mensal"),
-        ("anual", "Anual"),
-    ]
-    frequencia = models.CharField(
-        "frequência", max_length=50, choices=FREQUENCIA_CHOICES, default="diario"
-    )
-    moeda = models.CharField("moeda", max_length=10, default="BRL")
+    source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name="series")
+    codigo = models.CharField(max_length=100)
+    nome = models.CharField(max_length=300, default="")
+    ativo = models.CharField(max_length=200, default="")
+    unidade = models.CharField(max_length=100, default="")
+    frequencia = models.CharField(max_length=50, choices=FREQUENCIA_CHOICES, default="diario")
+    moeda = models.CharField(max_length=10, default="BRL")
 
     class Meta:
+        # Mesma dupla-chave da spec: a mesma série não pode ser cadastrada duas vezes
+        # na mesma fonte (R1/R3 — senão o gap e a idempotência ficam ambíguos).
+        unique_together = (("source", "codigo"),)
         verbose_name = "série"
         verbose_name_plural = "séries"
-        unique_together = [("source", "codigo")]
 
     def __str__(self):
         return f"{self.nome} ({self.ativo})"
 
 
 class Observation(models.Model):
-    """Observação de uma série em uma data: valor, unidade, fetched_at, payload_hash.
+    """Observação: valor de uma série em uma data (append-only).
 
-    Unique(serie, data) — regra R1 e R2 da spec `fontes-de-dados.md`.
-    Append-only: nunca sobrescreve, nunca exclui. Se a rebusca traz dados
-    diferentes, grava divergência em `fetch_log`, não altera `valor`.
+    É a linha atômica do banco histórico — ex.: 2016-09-09 → 3,2638 BRL/USD
+    (PTAX venda, BCB).
+    Regras: R1 (fato passado não muda), R2 (idempotência por série+data) e
+    R5 (a escrita só acontece por script de ingestão, nunca por API/view).
     """
-    serie = models.ForeignKey(
-        Serie, on_delete=models.CASCADE, related_name="observations"
-    )
-    data = models.DateField("data")
-    valor = models.DecimalField("valor", max_digits=20, decimal_places=8)
-    unidade = models.CharField("unidade", max_length=100, default="")
-    fetched_at = models.DateTimeField("fetched at", auto_now_add=True)
-    payload_hash = models.CharField(
-        "hash do payload bruto", max_length=64, default="", editable=False
-    )
+
+    serie = models.ForeignKey(Serie, on_delete=models.CASCADE, related_name="observations")
+    data = models.DateField()
+    valor = models.DecimalField(max_digits=20, decimal_places=8)
+    unidade = models.CharField(max_length=100, default="")
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    payload_hash = models.CharField(max_length=64, default="", editable=False)
 
     class Meta:
+        # Garante a idempotência exigida pela R2: rebuscar a mesma data não duplica.
+        unique_together = (("serie", "data"),)
         verbose_name = "observação"
         verbose_name_plural = "observações"
-        unique_together = [("serie", "data")]
         ordering = ["data"]
 
-    def save(self, *args, **kwargs):
-        if Observation.objects.filter(serie=self.serie, data=self.data).exists():
-            return
-        super().save(*args, **kwargs)
-
     def __str__(self):
-        return f"{self.serie.ativo} {self.data}: {self.valor} {self.unidade}"
+        return f"{self.serie_id} {self.data} = {self.valor}"
 
 
 class RawPayload(models.Model):
-    """Resposta bruta de ingestão para auditoria e reprocessamento.
+    """Payload bruto devolvido pela fonte, guardado para auditoria.
 
-    Regra R9: proveniência obrigatória — toda linha tem fonte, licença,
-    fetched_at e URL de origem.
+    Regra R9: guarda-se a resposta original para poder reprocessar sem rede e
+    provar de onde veio o número (URL + hash + horário da coleta).
     """
-    serie = models.ForeignKey(
-        Serie, on_delete=models.CASCADE, related_name="raw_payloads"
-    )
-    periodo = models.CharField("período", max_length=200, blank=True, default="")
-    url = models.URLField("URL de origem", max_length=500, default="")
-    resposta_bruta = models.TextField("resposta bruta", default="")
-    fetched_at = models.DateTimeField("fetched at", auto_now_add=True)
+
+    serie = models.ForeignKey(Serie, on_delete=models.CASCADE, related_name="raw_payloads")
+    periodo = models.CharField(max_length=200, blank=True, default="")
+    url = models.URLField(max_length=500, default="")
+    resposta_bruta = models.TextField(default="")
+    fetched_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "payload bruto"
         verbose_name_plural = "payloads brutos"
         ordering = ["-fetched_at"]
 
+    def __str__(self):
+        return f"payload {self.serie_id} em {self.fetched_at:%Y-%m-%d %H:%M}"
+
 
 class FetchLog(models.Model):
-    """Log de cada chamada de ingestão: source, dia, endpoint, status, itens, latência.
+    """Log de uma tentativa de coleta: dia, endpoint, status, itens, latência.
 
-    Regra R7: cota respeitada e contada — cada chamada registra fetch_log.
-    Regra R11: bloqueio declarado — endpoint que falha vira fetch_log com erro.
+    Regras R7 (respeitar cota) e R11 (bloqueio por licença/cota declarado aqui,
+    não escondido): cada fetch deixa rastro, inclusive os que falharam.
     """
-    source = models.ForeignKey(
-        Source, on_delete=models.CASCADE, related_name="fetch_logs"
-    )
-    dia = models.DateField("dia")
-    endpoint = models.CharField("endpoint", max_length=500, default="")
-    status = models.CharField("status", max_length=20, default="ok")
-    itens = models.PositiveIntegerField("itens coletados", default=0)
-    latencia = models.CharField("latência", max_length=30, default="")
+
+    source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name="fetch_logs")
+    dia = models.DateField()
+    endpoint = models.CharField(max_length=500, default="")
+    status = models.CharField(max_length=20, default="ok")
+    itens = models.PositiveIntegerField(default=0)
+    latencia = models.CharField(max_length=30, default="")
 
     class Meta:
         verbose_name = "log de fetch"
         verbose_name_plural = "logs de fetch"
         ordering = ["-dia"]
+
+    def __str__(self):
+        return f"{self.dia} {self.endpoint} → {self.status} ({self.itens} itens)"

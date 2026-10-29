@@ -1,4 +1,5 @@
 """Configurações de desenvolvimento."""
+
 from .base import *
 
 DEBUG = True

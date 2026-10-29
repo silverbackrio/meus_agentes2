@@ -1,15 +1,25 @@
 """
 Modelos do app analise.
 
-Estado derivado: métricas, cenários, dossiês. Onde a spec manda cálculo,
-ele vive em módulo Python puro — nunca em view, template ou JavaScript.
+Estado derivado: métricas, cenários, dossiês — os modelos que reúnem
+cálculos e insights. Onde a spec manda cálculo, ele vive em módulo Python
+puro, nunca em view, template ou JavaScript.
 """
+
 from django.conf import settings
 from django.db import models
 
+DEFAULT_METRICA_CHOICES = [("P/L", "Preço / Lucro"), ("P/VP", "Preço / Valor Patrimonial")]
 
-class MetaMixin:
-    """Mixin para owner (v1 sem login: null=True)."""
+
+class BaseModel(models.Model):
+    """Base com `owner`, herdada por todos os modelos do app.
+
+    Por que existe: a decisão A8 de `ARCHITECTURE_DECISIONS.md` registra que a v1
+    roda sem login, mas o schema já nasce multiusuário — ou seja, o campo `owner`
+    fica no banco desde o início para a v2 não precisar de migração de dados.
+    Ele é nulável de propósito: hoje ninguém preenche, amanhã todo mundo.
+    """
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -24,47 +34,31 @@ class MetaMixin:
         abstract = True
 
 
-class Metrica(models.Model):
+class Metrica(BaseModel):
     """Métrica calculada: valor, fórmula, período, frequência, base, data-base."""
 
-    class MetaMixin:
-        owner = models.ForeignKey(
-            settings.AUTH_USER_MODEL,
-            on_delete=models.PROTECT,
-            related_name="%(class)s_set",
-            null=True,
-            blank=True,
-            default=None,
-        )
-
-        class Meta:
-            abstract = True
-
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="metricas",
-        null=True,
-        blank=True,
-        default=None,
-    )
-    nome = models.CharField("nome", max_length=200)
-    valor = models.DecimalField("valor", max_digits=20, decimal_places=8)
-    formulacao = models.TextField("formula usada", default="")
-    periodo = models.CharField("período", max_length=100, default="")
-    FREQUENCIA_CHOICES = [
-        ("diario", "Diário"),
-        ("semanal", "Semanal"),
-        ("mensal", "Mensal"),
-    ]
+    nome = models.CharField(max_length=200)
+    valor = models.DecimalField(max_digits=20, decimal_places=8)
+    formulacao = models.TextField(blank=True, default="")
+    periodo = models.CharField(max_length=100, default="")
     frequencia = models.CharField(
-        "frequência", max_length=50, choices=FREQUENCIA_CHOICES, default="diario"
+        max_length=50,
+        choices=[
+            ("diario", "Diário"),
+            ("semanal", "Semanal"),
+            ("mensal", "Mensal"),
+        ],
+        default="diario",
     )
-    BASE_CHOICES = [("bruta", "Bruta"), ("liquida", "Líquida")]
     base = models.CharField(
-        "base", max_length=50, choices=BASE_CHOICES, default="bruta"
+        max_length=50,
+        choices=[
+            ("bruta", "Bruta"),
+            ("liquida", "Líquida"),
+        ],
+        default="bruta",
     )
-    data_base = models.DateField("data base", null=True, blank=True)
+    data_base = models.DateField(null=True, blank=True)
 
     class Meta:
         verbose_name = "métrica"
@@ -75,27 +69,15 @@ class Metrica(models.Model):
         return f"{self.nome}: {self.valor}"
 
 
-class Cenario(models.Model):
+class Cenario(BaseModel):
     """Cenário de estresse: choque por fator, premissa datada, impacto."""
 
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="cenarios",
-        null=True,
-        blank=True,
-        default=None,
-    )
-    nome = models.CharField("nome", max_length=200)
-    fator = models.CharField("fator", max_length=100, default="")
-    premissa = models.TextField("premissa", default="")
-    premissa_data = models.DateField("data da premissa", null=True, blank=True)
-    impacto_reais = models.DecimalField(
-        "impacto em R$", max_digits=16, decimal_places=2, default=0
-    )
-    impacto_pct = models.DecimalField(
-        "impacto em %", max_digits=6, decimal_places=2, default=0
-    )
+    nome = models.CharField(max_length=200)
+    fator = models.CharField(max_length=100, default="")
+    premissa = models.TextField(default="")
+    premissa_data = models.DateField(null=True, blank=True)
+    impacto_reais = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    impacto_pct = models.DecimalField(max_digits=6, decimal_places=2, default=0)
 
     class Meta:
         verbose_name = "cenário"
@@ -106,27 +88,21 @@ class Cenario(models.Model):
         return f"{self.nome}: {self.impacto_reais} R$"
 
 
-class Dossie(models.Model):
+class Dossie(BaseModel):
     """Dossiê datado: data, ativos, texto com fontes."""
 
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="dossies",
-        null=True,
-        blank=True,
-        default=None,
+    data = models.DateField()
+    titulo = models.CharField(max_length=300, default="")
+    conteudo = models.TextField(default="")
+    ativos = models.TextField(
+        default="",
+        help_text="Lista de ativos cobertos (ex: BBAS3, EWZ, ...)",
     )
-    data = models.DateField("data")
-    titulo = models.CharField("título", max_length=300, default="")
-    conteudo = models.TextField("conteúdo", default="")
-    ativos = models.TextField("ativos", default="", help_text="Lista de ativos cobertos")
 
     class Meta:
         verbose_name = "dossiê"
         verbose_name_plural = "dossiês"
         ordering = ["-data", "-id"]
-        # Constraint para evitar dossiês duplicados na mesma data com mesmo título
         constraints = [
             models.UniqueConstraint(
                 fields=["data", "titulo"],

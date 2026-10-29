@@ -26,12 +26,12 @@ que as torna oficiais.
 
 | # | Questão | Alternativas na mesa | Status |
 |---|---|---|---|
-| A1 | Ordem da primeira entrega (dado primeiro vs. carteira primeiro) | seguir a ordem da `aplicacao.md` (passo 1–7) ou inverter | aberta (27/10/2026) |
+| A1 | Ordem da primeira entrega (dado primeiro vs. carteira primeiro) | seguir a ordem da `aplicacao.md` (passo 1–7) ou inverter | **decidida (27/10/2026, confirmada pelo usuário)**: primeiro o Bloco 1 — gestão de posição, preço médio e projeção de renda passiva; a ordem formal ficou como passo 0 da `aplicacao.md` |
 | A2 | Primeira série a ingerir além do PTAX USD/BRL | Ibovespa, S&P 500, ouro, Selic — decidir pelo que você de fato decide hoje | aberta (27/10/2026) |
 | A3 | Hospedagem da v1 | VPS própria (já prevista em `infra-linux`) vs. alternativa gerenciada | aberta (27/10/2026) |
 | A4 | Como entregar consenso, preço-alvo médio e sentimento (caso BBAS3) | API com chave vs. coleta de notícias vs. entrada manual do usuário no app | aberta (27/10/2026) — usuário citou Investing.com e TradingView como desejados (**não confirmados**); precisa de pesquisa de fontes (pendência 4 do CONTEXT.md) antes de virar spec. Requisito do usuário: bloco datado **D-0** e o app só mostra o norte — a decisão é 100% dele |
 | A5 | Risco fiscal/político como série datada | série oficial (BCB, Tesouro/STN, CVM) vs. proxy de mercado (CDS, câmbio) vs. mistura com regra de composição | aberta (27/10/2026) |
-| A6 | Onde calcula o simulador de preço médio / YoC | endpoint do backend (respeita `aplicacao.md` R4, custa um round-trip) vs. regra pura no front (instantâneo, **quebra R4** — só mudando a spec) | aberta (27/10/2026) — inclinação: backend; confirmar se o round-trip local incomoda |
+| A6 | Onde calcula o simulador de preço médio / YoC | endpoint do backend (respeita `aplicacao.md` R4, custa um round-trip) vs. regra pura no front (instantâneo, **quebra R4** — só mudando a spec) | **decidida (28/10/2026): backend** — `analise/calculos.py` (função pura) + `POST /api/v1/analise/simular/`; o round-trip local é aceito porque mantém o cálculo testável e fora do JS (R4/R6) |
 | A7 | Fonte de cotação **tempo real** da B3 | brapi/outra API com chave vs. atraso aceitável (15–20 min) vs. WebSocket de corretora | aberta (27/10/2026) — a spec de fontes já registra que a B3 proíbe coleta automatizada (pendência 9 do CONTEXT.md) |
 | A8 | Fonte de proventos e múltiplos de 5 anos | RI do banco (HTML, licença a checar) vs. API com chave vs. base da CVM/B3 | aberta (27/10/2026) — pendências 10 e 11 do CONTEXT.md |
 | A9 | **Mecanismo do bloqueio de acesso** (decisão 12 já é "vai ter") | Cloudflare Access (dizem ter camada gratuita — **não confirmado, verificar**) vs. senha no cloudflared vs. basic auth no nginx vs. login Django | aberta (27/10/2026) — decide com o `infra-linux`, antes do primeiro deploy |

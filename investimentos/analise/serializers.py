@@ -5,6 +5,7 @@ Regra R2 (`specs/aplicacao.md`): toda resposta que traz número tem
 `valor`, `unidade`, `data_base` e `fonte`/`as_of` — sem exceção.
 Erro: `{erro, campo, sugestao}`.
 """
+
 from rest_framework import serializers
 
 from .models import Cenario, Dossie, Metrica
@@ -18,8 +19,15 @@ class MetricaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Metrica
         fields = [
-            "id", "owner", "nome", "valor", "formulacao",
-            "periodo", "frequencia", "base", "data_base",
+            "id",
+            "owner",
+            "nome",
+            "valor",
+            "formulacao",
+            "periodo",
+            "frequencia",
+            "base",
+            "data_base",
         ]
 
 
@@ -31,8 +39,14 @@ class CenarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cenario
         fields = [
-            "id", "owner", "nome", "fator", "premissa",
-            "premissa_data", "impacto_reais", "impacto_pct",
+            "id",
+            "owner",
+            "nome",
+            "fator",
+            "premissa",
+            "premissa_data",
+            "impacto_reais",
+            "impacto_pct",
         ]
 
 
@@ -44,6 +58,11 @@ class DossieSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dossie
         fields = [
-            "id", "owner", "data", "data_base", "titulo",
-            "conteudo", "ativos",
+            "id",
+            "owner",
+            "data",
+            "data_base",
+            "titulo",
+            "conteudo",
+            "ativos",
         ]

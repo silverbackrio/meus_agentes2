@@ -1,4 +1,5 @@
 """Configurações de produção."""
+
 from .base import *
 
 DEBUG = False

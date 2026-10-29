@@ -1,30 +1,38 @@
 #!/usr/bin/env python3
-"""
-Script de ingestão de dividendos e balanços — usa models reais de market_data.
+"""Script de ingestão de dividendos e balanço — usa models reais de market_data.
 
 Este script:
-1. Configura Django (settings.dev)
+1. Configura Django (settings.dev) no topo, antes de qualquer import
 2. Verifica fontes existentes (Yahoo Finance, Investing.com)
 3. Faz fetch de exemplo de dividendos (código fictício — sem request real)
 4. Insere observações se não existirem (regra R1 — append-only)
 5. Registra fetch_log com status e itens (regra R7)
 6. Registra bloqueio se licença não permitir (regra R8/R11)
 """
+
 import os
 import sys
-import json
-import base64
-import hashlib
-import datetime
 from pathlib import Path
+
+# Add workspace root to path (script is at .agents/scripts/)
+_workspace_root = Path(__file__).resolve().parent.parent.parent
+if str(_workspace_root) not in sys.path:
+    sys.path.insert(0, str(_workspace_root))
 
 # Configura Django antes de qualquer import de models
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "investimentos_project.settings.dev")
+
+import datetime
+import hashlib
+import json
+
 import django
+
 django.setup()
 
 from django.utils import timezone
-from investimentos.market_data.models import Source, Serie, Observation, RawPayload, FetchLog
+
+from investimentos.market_data.models import FetchLog, Observation, RawPayload, Serie, Source
 
 
 def sha256_payload(payload_text: str) -> str:
@@ -32,9 +40,24 @@ def sha256_payload(payload_text: str) -> str:
     return hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
 
 
-def registrar_fetch_log(source: Source, dia: datetime.date, endpoint: str,
-                        status: str, itens: int, latencia: str = "n/a"):
-    """Registra log de fetch (regra R7)."""
+def registrar_fetch_log(
+    source: Source | None,
+    dia: datetime.date,
+    endpoint: str,
+    status: str = "ok",
+    itens: int = 0,
+    latencia: str = "n/a",
+) -> None:
+    """Registra log de fetch (regra R7).
+
+    Sempre com argumentos nomeados nos chamadores: a ordem dos parâmetros é
+    fácil de trocar (status por itens) e o log errado é pior que log nenhum.
+    """
+    if source is None:
+        # R7/R11: sem fonte não há log de fetch — só um aviso na tela. O log tem
+        # `source` obrigatório (FK não nula), então não gravamos linha inválida.
+        print("  ⚠ Sem fonte registrada — fetch_log não gravado (R7)")
+        return
     FetchLog.objects.create(
         source=source,
         dia=dia,
@@ -55,8 +78,7 @@ def salvar_payload_bruto(serie: Serie, payload_text: str, url_origem: str):
     )
 
 
-def inserir_observacao(serie: Serie, data: datetime.date, valor: float,
-                       unidade: str = "") -> Observation | None:
+def inserir_observacao(serie: Serie, data: datetime.date, valor: float, unidade: str = "") -> Observation | None:
     """Insere observação se não existir (regra R1 — append-only)."""
     existe = Observation.objects.filter(serie=serie, data=data).exists()
     if existe:
@@ -98,7 +120,7 @@ def fetch_dividendos_yahoo(serie: Serie, data_inicial: datetime.date, data_final
         print(f"  Gap estimado: {gap.days} dias (a confirmar)")
 
     # Simulação de fetch (sem request real, sem chave em ambiente)
-    print("  ⚠ Nenhum fetch real — sem chave/tested no ambiente (R6 — chave só em .env)")
+    print("  ⚠ Nenhum fetch real — sem chave/testado no ambiente (R6 — chave só em .env)")
     print("  → Verificar se BRAPI_API_KEY ou outra chave está no .env antes de fetch")
     return []  # Retorna lista vazia em produção (a ser implementado)
 
@@ -116,33 +138,19 @@ def fetch_balanco_investing(serie: Serie, data: datetime.date):
     existe = Observation.objects.filter(serie=serie, data=data).exists()
     if existe:
         print(f"  ⊘ Observação já existe para {serie.ativo} {data} — não sobrescreve (R1)")
-        return None
+        return
 
-    print("  ⚠ Nenhum fetch real — sem chave/tested no ambiente (R6 — chave só em .env)")
+    print("  ⚠ Nenhum fetch real — sem chave/testado no ambiente (R6 — chave só em .env)")
     print("  → Verificar se EIA_API_KEY ou outra chave está no .env antes de fetch")
-    return None
+    return
 
 
 def main():
     print("=" * 60)
-    print("Script de ingressão de dividendos e balanços")
+    print("Script de ingestão de dividendos e balanços")
     print("=" * 60)
     print(f"Início: {timezone.now()}")
     print()
-
-    # Configura Django (porque roda fora do manage.py)
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "investimentos_project.settings.dev")
-    import django
-    django.setup()
-
-    from investimentos.market_data.models import Source, Serie, Observation, RawPayload, FetchLog
-    from investimentos.market_data.models import (
-        TIPO_API, TIPO_ARQUIVO, TIPO_MANUAL,
-        FREQUENCIA_CHOICES,
-    )
-
-    hoje = timezone.now().date()
-    hoje_str = hoje.isoformat()
 
     # Verifica se existem fontes no banco
     fontes_existentes = Source.objects.all()
@@ -154,29 +162,27 @@ def main():
         return
 
     # Busca fontes específicas
-    yahoo_source = Source.objects.filter(nome__icontains="yahoo", tipo=TIPO_API).first()
-    investing_source = Source.objects.filter(nome__icontains="investing", tipo=TIPO_API).first()
+    yahoo_source = Source.objects.filter(nome__icontains="yahoo", tipo="api").first()
+    investing_source = Source.objects.filter(nome__icontains="investing", tipo="api").first()
 
     # Exemplos de séries
-    seriel_lista = Serie.objects.all()
-    print(f"\nSéries existentes: {list(serie_lista)}")
+    print(f"\nSéries existentes: {list(Serie.objects.all())}")
     print()
 
     # Para cada série, tenta fazer ingestão
-    for serie in serie_lista:
-        print(f"\n{'='*40}")
+    for serie in Serie.objects.all():
+        print(f"\n{'=' * 40}")
         print(f"Série: {serie.nome} ({serie.ativo})")
-        print(f"{'='*40}")
+        print(f"{'=' * 40}")
 
         if not yahoo_source and not investing_source:
             print("  ⚠ Nenhuma fonte de exemplo disponível — registrar apenas log de erro")
             registrar_fetch_log(
-                source=serie.source if hasattr(serie, 'source') else None,
-                dia=hoje,
+                source=serie.source,
+                dia=timezone.now().date(),
                 endpoint="ingest_dividendos_balances",
                 status="sem_fonte",
                 itens=0,
-                latencia="n/a",
             )
             continue
 
@@ -185,39 +191,59 @@ def main():
             if yahoo_source:
                 resultado = fetch_dividendos_yahoo(
                     serie=serie,
-                    data_inicial=hoje - datetime.timedelta(days=365),
-                    data_final=hoje,
+                    data_inicial=timezone.now().date() - datetime.timedelta(days=365),
+                    data_final=timezone.now().date(),
                 )
                 if resultado:
                     salvar_payload_bruto(serie, json.dumps(resultado), yahoo_source.url_base)
-                    registrar_fetch_log(yahoo_source, hoje, "ingest_dividendos_yahoo",
-                                       len(resultado), "0.5s")
+                    registrar_fetch_log(
+                        source=yahoo_source,
+                        dia=timezone.now().date(),
+                        endpoint="ingest_dividendos_yahoo",
+                        status="ok",
+                        itens=len(resultado),
+                        latencia="0.5s",
+                    )
                 else:
-                    registrar_fetch_log(yahoo_source, hoje, "ingest_dividendos_yahoo",
-                                       itens=0, latencia="n/a")
+                    registrar_fetch_log(
+                        source=yahoo_source,
+                        dia=timezone.now().date(),
+                        endpoint="ingest_dividendos_yahoo",
+                        status="vazio",
+                        itens=0,
+                    )
 
             # Tenta fetch de balanços (simulado)
             if investing_source:
-                resultado_balanco = fetch_balanco_investing(serie, hoje)
+                resultado_balanco = fetch_balanco_investing(serie, timezone.now().date())
                 if resultado_balanco:
-                    salvar_payload_bruto(serie, json.dumps(resultado_balanco),
-                                        investing_source.url_base)
-                    registrar_fetch_log(investing_source, hoje, "fetch_balanco_investing",
-                                       itens=len(resultado_balanco), latencia="0.3s")
+                    salvar_payload_bruto(serie, json.dumps(resultado_balanco), investing_source.url_base)
+                    registrar_fetch_log(
+                        source=investing_source,
+                        dia=timezone.now().date(),
+                        endpoint="fetch_balanco_investing",
+                        status="ok",
+                        itens=len(resultado_balanco),
+                        latencia="0.3s",
+                    )
                 else:
-                    registrar_fetch_log(investing_source, hoje, "fetch_balanco_investing",
-                                       itens=0, latencia="n/a")
+                    registrar_fetch_log(
+                        source=investing_source,
+                        dia=timezone.now().date(),
+                        endpoint="fetch_balanco_investing",
+                        status="vazio",
+                        itens=0,
+                    )
         except Exception as e:
-            print(f"  ✗ ERRO durante ingestão: {str(e)}")
+            print(f"  ✗ ERRO durante ingestão: {e!s}")
             registrar_fetch_log(
-                source=serie.source if hasattr(serie, 'source') else None,
-                dia=hoje,
+                source=serie.source,
+                dia=timezone.now().date(),
                 endpoint="ingest_dividendos_balances",
                 status="erro",
                 itens=0,
-                latencia="n/a",
             )
-            print(f"  → Erro registrado no fetch_log (R11 — bloqueio declarado)")
+            print("  → Erro registrado no fetch_log (R11 — bloqueio declarado)")
 
     print("\n" + "=" * 60)
     print("Ingestão concluída.")

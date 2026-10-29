@@ -1,39 +1,29 @@
-[project]
-name = "investimentos"
-version = "0.1.0"
-description = "Aerogerador de agentes especializados em investimentos no Brasil"
-readme = "README.md"
-requires-python = ">=3.12,<3.15"
-license = {text = "MIT"}
-dependencies = [
-    "django>=5.2,<6.0",
-    "djangorestframework>=3.18",
-    "pytest>=9.0",
-    "pytest-django>=4.0",
-    "ruff>=0.1+",
-    "mypy>=1.0",
-]
-
-[tool.uv.sources]
-django = { git = "https://github.com/django/django.git", tag = "stable/5.2.x" }
-djangorestframework = { git = "https://github.com/encode/django-rest-framework.git", tag = "3.18.x" }
-
-[tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "investimentos.settings.base"
-pythonpath = ["."]
-addopts = "-v --tb=short"
-
 [tool.ruff]
 line-length = 120
 target-version = "py314"
 include = ["*.py"]
-exclude = ["__pycache__", ".venv", "node_modules"]
+exclude = ["__pycache__", ".venv", "node_modules", "investimentos/*/migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "SIM", "RUF"]
+
+# Exceções conscientes (ver specs/aplicacao.md e AGENTS.md):
+# - settings: herança por `from .base import *` é a convenção do Django (base/dev/prod).
+# - models/serializers: listas de campos e choices são atributos de classe mutáveis por design.
+# - scripts de ingestão: `django.setup()` precisa rodar antes dos imports de models (E402).
+[tool.ruff.lint.per-file-ignores]
+"investimentos_project/settings/*.py" = ["F403", "F405"]
+"investimentos/**/models.py" = ["RUF012"]
+"investimentos/**/serializers.py" = ["RUF012"]
+"tests.py" = ["RUF012"]
+".agents/scripts/*.py" = ["E402"]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
 
 [tool.mypy]
 python_version = "3.14"
 strict = true
-files = ["**/*.py"]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+files = ["investimentos/**/*.py"]
+exclude = ["**/migrations/*"]

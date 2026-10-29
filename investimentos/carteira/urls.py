@@ -1,4 +1,5 @@
 """URLs do app carteira (API v1 /api/v1/carteira/)."""
+
 from django.urls import path
 
 from . import views
