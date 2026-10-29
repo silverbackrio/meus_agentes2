@@ -1,0 +1,52 @@
+import React from "react";
+import "./App.css";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { analiseApi } from "./api/analiseApi";
+
+import { SimulatorComponent } from "./components/Simulator/Simulator";
+import { MetricasList } from "./components/Metricas/MetricasList";
+import { DossiesList } from "./components/Dossies/DossiesList";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
+
+export const App = () => {
+  const [carregando, setCarregando] = React.useState(true);
+
+  React.useEffect(() => {
+    // Verificar se o backend está disponível
+    analiseApi.listMetricas().then(() => setCarregando(false)).catch(() => setCarregando(false));
+  }, []);
+
+  if (carregando) {
+    return <div className="loading">Carregando aplicação...</div>;
+  }
+
+  return (
+    <Router>
+      <nav className="navbar">
+        <ul>
+          <li><Link to="/">Painel</Link></li>
+          <li><Link to="/analise">Análise</Link></li>
+          <li><Link to="/dados">Dados</Link></li>
+          <li><Link to="/carteira">Carteira</Link></li>
+        </ul>
+      </nav>
+
+      <main className="container">
+        <Routes>
+          <Route path="/" element={<></>} />
+          <Route path="/analise" element={<></>}>
+            <Route index element={<></>} />
+            <Route path="simulador" element={<SimulatorComponent />} />
+          </Route>
+          <Route path="/dados" element={<></>}>
+            <Route index element={<></>} />
+            <Route path="metricas" element={<MetricasList />} />
+            <Route path="dossies" element={<DossiesList />} />
+          </Route>
+          <Route path="/carteira" element={<></>} />
+        </Routes>
+      </main>
+    </Router>
+  );
+};

@@ -306,3 +306,37 @@ retroativas a D-0, sem armazenar horizonte fixo no banco — o cálculo usa o pr
 | 10 | **Histórico de proventos (dividendos/JCP) de BBAS3** para o yield on cost projetado | simulador de preço médio + projeção de renda passiva | aberta (27/10/2026) — fonte não definida (RI, B3, CVM, brapi?) |
 | 11 | **Múltiplos históricos P/L e P/VP (5 anos)** a partir do RI do banco, com fonte e licença | painel de valuation | aberta (27/10/2026) — RI é dado institucional, checar licença e frequência |
 | 12 | **Mecanismo do bloqueio de acesso** (já é decisão: vai ter) | primeiro deploy em produção | aberta (27/10/2026) — decidir com `infra-linux` (A9) |
+
+## Regra do Simulador (confirmada em 29/10/2026, perguntas 5-8 do grill)
+
+### Entrada do simulador
+O backend recebe o trio completo: **quantidade simulada**, **preço de tela atual** e **provento anual projetado por ação (R$/ação)**. O caso de uso também aceita **JCP anual projetado por ação (R$/ação)** como entrada separada (agora zero) para a fórmula já estar pronta quando a fonte real ficar disponível.
+
+### Cálculo (backend, função pura)
+1. **Média ponderada real da posição atual:** o "custo médio atual" vem da soma de todas as operações salvas no banco para aquele ativo, não só da última operação.
+2. **Novo preço médio:** ((quantidade atual × custo médio atual) + (quantidade simulada × preço de tela)) ÷ (quantidade atual + quantidade simulada).
+3. **Custo total do aporte:** quantidade simulada × preço de tela.
+4. **Yield on cost projetado:** (provento anual + JCP anual) ÷ novo preço médio, com premissa datada e claro de que é projeção, não garantia.
+5. **Projeção de renda passiva:** provento anual + JCP anual aplicado ao novo preço médio, como cenário — não previsão (compliance-e-avisos.md).
+
+### Resumo exibido na linha de apoio (exatamente como definido)
+- Abaixo do novo preço médio: "Preço médio cai X% · Custo total do aporte = R$"
+  (se o preço médio cair, o delta fica verde — para o comprador é positivo).
+- Abaixo do novo yield on cost: "+X% no YoC · +R$ Y de renda passiva projetada/ano"
+  (verde para sinalizar ganho de renda passiva).
+
+### Restrição de ação
+O simulador é puramente visual/matemático — não executa ordens, não grava posições no banco. O único botão no escopo da v1 é "Resetar Simulação" (limpa campo e volta para zero). Botões como "confirmar aporte" ou "abrir detalhes" ficam para depois.
+
+### Validação do input (regras explícitas + mensagens amigáveis)
+- Só aceita números inteiros positivos (não existe fração de cota no mercado de ações).
+- Se 0: "Digite uma quantidade maior que zero para simular." — limpa o resultado e não calcula.
+- Se negativo: "A quantidade de ações para o aporte deve ser positiva."
+- Se letras ou decimal: o campo de texto rejeita a digitação ou exibe "Insira apenas números inteiros." para não quebrar o backend com erro inesperado.
+
+### Comportamento híbrido Web/Mobile (mesmo backend, diferente exibição)
+- **Web/desktop:** formulário completo e visível — quantidade + preço de tela + campo explícito de "provento anual projetado por ação", com padrão de teste R$ 4,50. O usuário vê tudo aberto e pode auditar a matemática.
+- **Mobile:** campo de provento fica oculto; o app injeta o provento automaticamente no fluxo, e o usuário só digita a quantidade. A interface fica mais limpa.
+- **Backlog de automação:** hoje o R$ 4,50 é premissa de teste; quando a API de proventos estiver pronta, o campo vira preenchido automaticamente (na web pode ser editável se o usuário quiser alterar; no mobile roda totalmente oculto e automático).
+
+**Princípio:** o backend não sabe e não depende de como o front exibe — ele só calcula com o trio completo e o JCP opcional. Qualquer tela que evoluir depois usa o mesmo contrato.
