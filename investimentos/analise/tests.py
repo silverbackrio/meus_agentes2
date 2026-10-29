@@ -111,6 +111,41 @@ class CalculosPrecoMedioTest(SimpleTestCase):
         self.assertEqual(resumo["projecao_renda_passiva"], Decimal("420.00"))
         self.assertIsNotNone(resumo["pnl"])
 
+    def test_resumo_simulacao_com_jcp_zerado_somente_provento(self):
+        # Caso 1 do grill: JCP explícito zero, só provento entra no cálculo.
+        resumo = resumo_simulacao(
+            quantidade_atual=Decimal("100"),
+            preco_medio_atual=Decimal("30.00"),
+            quantidade_nova=Decimal("100"),
+            preco_nova_compra=Decimal("24.00"),
+            preco_atual_tela=Decimal("22.10"),
+            proventos_12m_por_acao=Decimal("2.10"),
+            jcp_anual_por_acao=Decimal("0"),
+        )
+        self.assertEqual(resumo["preco_medio_novo"], Decimal("27.00"))
+        self.assertEqual(resumo["projecao_renda_passiva"], Decimal("420.00"))
+        self.assertIsNotNone(resumo["yield_on_cost_novo"])
+        self.assertAlmostEqual(
+            float(resumo["yield_on_cost_novo"]), 2.10 / 27.00, places=8
+        )
+
+    def test_resumo_simulacao_sem_jcp_omite_o_campo(self):
+        # Caso 2 do grill: JCP omitido -> contrato aceita e usa zero no cálculo.
+        resumo = resumo_simulacao(
+            quantidade_atual=Decimal("100"),
+            preco_medio_atual=Decimal("30.00"),
+            quantidade_nova=Decimal("100"),
+            preco_nova_compra=Decimal("24.00"),
+            preco_atual_tela=Decimal("22.10"),
+            proventos_12m_por_acao=Decimal("2.10"),
+        )
+        self.assertEqual(resumo["preco_medio_novo"], Decimal("27.00"))
+        self.assertEqual(resumo["projecao_renda_passiva"], Decimal("420.00"))
+        self.assertIsNotNone(resumo["yield_on_cost_novo"])
+        self.assertAlmostEqual(
+            float(resumo["yield_on_cost_novo"]), 2.10 / 27.00, places=8
+        )
+
 
 class SimularApiTest(TestCase):
     """POST /api/v1/analise/simular/ — contrato da API (R2, R4 e R9)."""
@@ -157,6 +192,48 @@ class SimularApiTest(TestCase):
         corpo = resposta.json()
         self.assertEqual(corpo["campo"], "quantidade_nova")
         self.assertIn("sugestao", corpo)
+
+    def test_api_somente_provento_omitindo_jcp_gera_200(self):
+        # Caso 2 do grill: JCP omitido na requisição -> backend usa zero.
+        resposta = self.client.post(
+            self.url,
+            self._payload(jcp_anual_por_acao=None),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        corpo = resposta.json()
+        self.assertAlmostEqual(
+            corpo["resultado"]["yield_on_cost_novo"]["valor"],
+            2.10 / 27.00,
+            places=2,
+        )
+        self.assertAlmostEqual(
+            corpo["resultado"]["projecao_renda_passiva"]["valor"],
+            420.00,
+            places=2,
+        )
+        self.assertIsNotNone(corpo["resultado"]["jcp_anual_por_acao"])
+
+    def test_api_com_jcp_zerado_gera_200(self):
+        # Caso 1 do grill: JCP explícito zero, só provento entra no cálculo.
+        resposta = self.client.post(
+            self.url,
+            self._payload(jcp_anual_por_acao="0"),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        corpo = resposta.json()
+        self.assertAlmostEqual(
+            corpo["resultado"]["yield_on_cost_novo"]["valor"],
+            2.10 / 27.00,
+            places=2,
+        )
+        self.assertAlmostEqual(
+            corpo["resultado"]["projecao_renda_passiva"]["valor"],
+            420.00,
+            places=2,
+        )
+        self.assertIsNotNone(corpo["resultado"]["jcp_anual_por_acao"])
 
     def test_entrada_invalida_retorna_422_e_nao_calcula(self):
         resposta = self.client.post(

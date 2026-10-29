@@ -112,35 +112,67 @@ def pnl(quantidade, preco_medio, preco_atual):
     return valor, percentual
 
 
-def yield_on_cost(proventos_12m_por_acao, preco_medio):
-    """Yield on cost: proventos dos últimos 12 meses ÷ preço médio pago.
+def _rendimento_total(
+    proventos_12m_por_acao: Decimal,
+    jcp_anual_por_acao: Decimal,
+) -> Decimal:
+    """Rendimento anual projetado por ação = proventos + JCP (quando JCP é informado).
 
-    Sempre **projeção**, nunca garantia (``specs/compliance-e-avisos.md``), e
-    sempre datada: a premissa é "se os proventos dos últimos 12 meses se
-    repetirem". Sai como fração — 0,076 = 7,6% a.a. sobre o custo.
-
-    Fórmula::``
-
-        YoC = proventos_12m_por_acao ÷ preco_medio
+    Ainda sem fonte real (pendência 10 do CONTEXT.md): no esqueleto, o JCP entra
+    como parâmetro separado e pode ser zero. A premissa é sempre "se esse rendimento
+    se repetir no próximo ano", nunca garantia (``compliance-e-avisos.md``).
     """
     proventos = _positivo(proventos_12m_por_acao, "proventos_12m_por_acao")
+    jcp = _decimal(jcp_anual_por_acao, "jcp_anual_por_acao")
+    if jcp < ZERO:
+        raise ValueError(
+            f"jcp_anual_por_acao: não pode ser negativo (recebido {jcp})"
+        )
+    return proventos + jcp
+
+
+def yield_on_cost(
+    proventos_12m_por_acao: Decimal,
+    preco_medio: Decimal,
+    jcp_anual_por_acao: Decimal | None = None,
+) -> Decimal:
+    """Yield on cost: rendimento total projetado por ação ÷ preço médio pago.
+
+    Quando ``jcp_anual_por_acao`` é omitido, usa apenas os proventos. Quando
+    informado, soma proventos + JCP antes de dividir pelo custo.
+
+    Sempre **projeção**, nunca garantia (``specs/compliance-e-avisos.md``).
+    Sai como fração — 0,076 = 7,6% a.a. sobre o custo.
+
+    Fórmula::
+
+        rendimento_total = proventos_12m_por_acao + (jcp_anual_por_acao ou 0)
+        YoC = rendimento_total ÷ preco_medio
+    """
     pm = _positivo(preco_medio, "preco_medio")
-    return proventos / pm
+    rendimento = _rendimento_total(proventos_12m_por_acao, jcp_anual_por_acao or ZERO)
+    return rendimento / pm
 
 
-def projecao_renda_passiva(quantidade, proventos_12m_por_acao, preco_medio=None):
+def projecao_renda_passiva(
+    quantidade: Decimal,
+    proventos_12m_por_acao: Decimal,
+    preco_medio: Decimal | None = None,
+    jcp_anual_por_acao: Decimal | None = None,
+) -> tuple[Decimal, Decimal | None]:
     """Renda passiva anual projetada da posição, em moeda da posição.
 
-    ``quantidade * proventos_12m_por_acao``. Se ``preco_medio`` for informado,
-    devolve também o YoC — assim a view preenche o bloco inteiro em uma chamada.
+    ``quantidade * (proventos_12m_por_acao + jcp_anual_por_acao)``. Se
+    ``preco_medio`` for informado, devolve também o YoC — assim a view preenche
+    o bloco inteiro em uma chamada.
 
     Retorna ``(renda_anual, yield_on_cost | None)``.
     """
     qtd = _positivo(quantidade, "quantidade")
-    proventos = _positivo(proventos_12m_por_acao, "proventos_12m_por_acao")
+    rendimento = _rendimento_total(proventos_12m_por_acao, jcp_anual_por_acao or ZERO)
 
-    renda = qtd * proventos
-    yoc = yield_on_cost(proventos, preco_medio) if preco_medio is not None else None
+    renda = qtd * rendimento
+    yoc = yield_on_cost(proventos_12m_por_acao, preco_medio, jcp_anual_por_acao) if preco_medio is not None else None
     return renda, yoc
 
 
@@ -152,6 +184,7 @@ def resumo_simulacao(
     preco_nova_compra,
     preco_atual_tela=None,
     proventos_12m_por_acao=None,
+    jcp_anual_por_acao=None,
 ):
     """Monta o dicionário completo do simulador do Bloco 1 (entrada da view).
 

@@ -9,6 +9,8 @@ monta o envelope datado da R2 (``valor`` + ``unidade`` + ``data_base``/``as_of``
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+ZERO = Decimal("0")
+
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -30,7 +32,9 @@ FORMULA_PRECO_MEDIO = (
     "novo_preco_medio = (qtd_atual * preco_medio_atual + qtd_nova * preco_nova) "
     "/ (qtd_atual + qtd_nova)"
 )
-FORMULA_YOC = "yield_on_cost = proventos_12m_por_acao / preco_medio"
+FORMULA_YOC = (
+    "yield_on_cost = (proventos_12m_por_acao + (jcp_anual_por_acao ou 0)) / preco_medio"
+)
 
 AVISO_PROJECAO = (
     "Projeção com a premissa datada dos proventos dos últimos 12 meses — não é "
@@ -100,6 +104,7 @@ def simular(request):
         "preco_medio_atual": dados.get("preco_medio_atual"),
         "quantidade_nova": dados.get("quantidade_nova"),
         "preco_nova_compra": dados.get("preco_nova_compra"),
+        "jcp_anual_por_acao": dados.get("jcp_anual_por_acao") or ZERO,
     }
     faltando = [campo for campo, valor in obrigatorios.items() if valor in (None, "")]
     if faltando:
@@ -120,6 +125,7 @@ def simular(request):
             preco_nova_compra=obrigatorios["preco_nova_compra"],
             preco_atual_tela=dados.get("preco_atual_tela"),
             proventos_12m_por_acao=dados.get("proventos_12m_por_acao"),
+            jcp_anual_por_acao=dados.get("jcp_anual_por_acao") if dados.get("jcp_anual_por_acao") not in (None, "") else ZERO,
         )
     except ValueError as exc:
         mensagem = str(exc)
@@ -161,8 +167,7 @@ def simular(request):
                 "unidade": unidade_qtd,
             },
             "preco_nova_compra": bloco(preco_nova, unidade_preco, _EXP_PRECO),
-        },
-        "resultado": {
+        },            "resultado": {
             "preco_medio_novo": bloco(resultado["preco_medio_novo"], unidade_preco, _EXP_PRECO),
             "quantidade_total": bloco(resultado["quantidade_total"], "títulos", _EXP_PRECO),
             "custo_novo_total": bloco(resultado["custo_novo_total"], moeda, _EXP_MOEDA),
@@ -172,6 +177,11 @@ def simular(request):
             "yield_on_cost_novo": bloco(resultado["yield_on_cost_novo"], moeda_fracao, _EXP_FRACAO),
             "projecao_renda_passiva": bloco(
                 resultado["projecao_renda_passiva"], f"{moeda}/ano", _EXP_MOEDA
+            ),
+            "jcp_anual_por_acao": bloco(
+                Decimal(str(obrigatorios["jcp_anual_por_acao"])) if obrigatorios["jcp_anual_por_acao"] not in (None, "") else ZERO,
+                f"{moeda}/ação/ano",
+                _EXP_MOEDA,
             ),
         },
         "formula": {
