@@ -28,15 +28,24 @@ export interface DadosEnvelope {
 export const Dados = () => {
   const [dados, setDados] = React.useState<DadosEnvelope | null>(null);
   const [carregando, setCarregando] = React.useState(true);
+  const [erro, setErro] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    analiseApi.listMetricas().then((_resp) => {
-      // TODO: Implement listSeries when available
+    analiseApi.listSeries().then((resp) => {
+      const dadosResp = resp.data;
+      if (!dadosResp || !dadosResp.series) {
+        setCarregando(false);
+        return;
+      }
+      const series = dadosResp.series.map((s: any) => ({
+        data: s.data_base || s.data || "",
+        valor: Number(s.valor) || 0,
+      }));
       setDados({
-        as_of: new Date().toISOString().split("T")[0],
-        total: 0,
-        series: [],
-        cobertura: {
+        as_of: dadosResp.as_of || new Date().toISOString().split("T")[0],
+        total: dadosResp.total || series.length,
+        series: series,
+        cobertura: dadosResp.cobertura || {
           esperadas: 0,
           presentes: 0,
           faltantes: 0,
@@ -47,15 +56,17 @@ export const Dados = () => {
           primeira: "-",
           ultima: "-",
         },
-        observacoes: ["Dados disponíveis via API /series/"],
+        observacoes: dadosResp.observacoes || [],
       });
       setCarregando(false);
     }).catch((_e) => {
+      setErro("Erro ao carregar séries");
       setCarregando(false);
     });
   }, []);
 
   if (carregando) return <div className="loading">Carregando dados...</div>;
+  if (erro) return <div className="error">Erro: {erro}</div>;
   if (!dados) return <div className="loading">Sem dados</div>;
 
   return (

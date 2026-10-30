@@ -67,4 +67,12 @@ export const analiseApi = {
   async dossieDetail(data: string) {
     return api.get(`/dossies/${data}/`);
   },
+
+  async listSeries() {
+    return api.get("/series/");
+  },
+
+  async listPosicoes() {
+    return api.get("/carteira/");
+  },
 };
