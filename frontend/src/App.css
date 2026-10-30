@@ -10,6 +10,21 @@
   --shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
+body {
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+}
+
+h2 {
+  margin: 0 0 8px;
+}
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 16px;
+}
+
 .navbar {
   background: var(--accent-bg);
   padding: 12px 24px;
@@ -23,6 +38,7 @@
   display: flex;
   gap: 16px;
   margin: 0;
+  padding: 0;
 }
 
 .navbar a {
@@ -42,7 +58,7 @@
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 24px 48px;
 }
 
 .loading {
@@ -58,4 +74,251 @@
   border-radius: 4px;
   color: #cc0000;
   margin: 16px 0;
+}
+
+.muted {
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.vazio {
+  background: #fafafa;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  color: var(--text-h);
+}
+
+.secao-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary-btn,
+.secondary-btn,
+.link-btn {
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.primary-btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.secondary-btn {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+}
+
+.secondary-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0 6px 0 0;
+  text-decoration: underline;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-size: 14px;
+}
+
+.tabela th,
+.tabela td {
+  border-bottom: 1px solid #eee;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tabela th {
+  background: #fafafa;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tabela tbody tr:hover {
+  background: #fffdf5;
+}
+
+.tabela-compacta td,
+.tabela-compacta th {
+  padding: 4px 8px;
+}
+
+.linha-ativa {
+  background: #fff7e0;
+}
+
+.acoes-linha {
+  white-space: nowrap;
+}
+
+.barra {
+  background: #eee;
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.barra span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.detalhe-serie {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 16px;
+  background: #fcfcfc;
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  min-width: 180px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-rotulo {
+  color: var(--text-h);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.selo {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.selo.ok {
+  background: #e7f7ec;
+  border-color: #b7e2c4;
+  color: #1c7c3c;
+}
+
+.selo.fora {
+  background: #fdecea;
+  border-color: #f5c2bd;
+  color: #b3261e;
+}
+
+.selo.neutro {
+  background: #eef2f7;
+  border-color: #d3dde8;
+  color: #3a4a5c;
+}
+
+.form-comparar {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin: 12px 0 20px;
+  background: #fcfcfc;
+}
+
+.form-comparar label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-comparar textarea,
+.form-comparar input {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-comparar textarea:focus,
+.form-comparar input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.form-comparar button {
+  justify-self: start;
+}
+
+.resultado-comparar {
+  margin-top: 8px;
+}
+
+.lista-formulas {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-h);
+  display: grid;
+  gap: 6px;
+}
+
+.aviso {
+  background: #fff8e1;
+  border: 1px solid #f0d99b;
+  border-radius: 4px;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+code {
+  background: #f2f2f2;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12px;
 }

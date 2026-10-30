@@ -72,7 +72,19 @@ export const analiseApi = {
     return api.get("/series/");
   },
 
+  async serieObservacoes(id: number) {
+    return api.get(`/series/${id}/observacoes/`);
+  },
+
+  async dadosStatus() {
+    return api.get("/dados/status/");
+  },
+
   async listPosicoes() {
     return api.get("/carteira/");
+  },
+
+  async carteiraResumo() {
+    return api.get("/carteira/resumo/");
   },
 };

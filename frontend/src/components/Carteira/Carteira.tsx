@@ -1,140 +1,184 @@
 import React from "react";
 import { analiseApi } from "../../api/analiseApi";
-import { decimalMoedaLocal } from "../../utils/format";
 
-export interface Posicao {
-  codigo: string;
-  nome: string;
-  tipo: "renda_fixa" | "renda_variavel" | "fundo";
+interface PosicaoResumo {
+  ativo: string;
+  classe: string;
   quantidade: number;
   preco_medio: number;
-  preco_atual: number;
-  pnl: number;
-  pnl_percentual: number;
+  custo_total: number;
+  moeda: string;
+  instituicao: string;
+  operacoes_count: number;
 }
 
-export interface CarteiraEnvelope {
-  data: string;
-  total: number;
-  posicoes: Posicao[];
-  resumo: {
-    total_investido: number;
-    valor_atual: number;
-    ganho_perda: number;
-    ganho_percentual: number;
-    peso_renda_fixa: number;
-    peso_renda_variavel: number;
-    peso_fundos: number;
-  };
+interface PesoPolitica {
+  classe: string;
+  peso_alvo: number;
+  faixa_min: number;
+  faixa_max: number;
+  peso_atual: number;
+  dentro_faixa: boolean;
 }
+
+interface Resumo {
+  as_of: string;
+  total_posicoes: number;
+  custo_total_geral: number;
+  posicoes: PosicaoResumo[];
+  pesos_vs_politica: PesoPolitica[];
+  pnl_total: number | null;
+  pnl_total_pct: number | null;
+}
+
+const moeda = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  }).format(valor);
+
+const numero = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 4 }).format(valor);
 
 export const Carteira = () => {
-  const [carteira, setCarteira] = React.useState<CarteiraEnvelope | null>(null);
+  const [resumo, setResumo] = React.useState<Resumo | null>(null);
   const [carregando, setCarregando] = React.useState(true);
   const [erro, setErro] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    analiseApi.listPosicoes().then((resp) => {
-      const dados = resp.data;
-      if (!dados || !dados.posicoes) {
+  const carregar = React.useCallback(() => {
+    setCarregando(true);
+    setErro(null);
+    analiseApi
+      .carteiraResumo()
+      .then((resp) => {
+        setResumo(resp.data);
         setCarregando(false);
-        return;
-      }
-
-      const posicoesMap = dados.posicoes.map((p: any) => ({
-        codigo: p.codigo || "",
-        nome: p.nome || "",
-        tipo: p.tipo || "renda_fixa",
-        quantidade: Number(p.quantidade) || 0,
-        preco_medio: Number(p.preco_medio) || 0,
-        preco_atual: Number(p.preco_atual) || 0,
-        pnl: Number(p.pnl) || 0,
-        pnl_percentual: Number(p.pnl_percentual) || 0,
-      }));
-
-      const resumo = {
-        total_investido: Number(dados.total_investido) || 0,
-        valor_atual: Number(dados.valor_atual) || 0,
-        ganho_perda: Number(dados.ganho_perda) || 0,
-        ganho_percentual: Number(dados.ganho_percentual) || 0,
-        peso_renda_fixa: Number(dados.peso_renda_fixa) || 0,
-        peso_renda_variavel: Number(dados.peso_renda_variavel) || 0,
-        peso_fundos: Number(dados.peso_fundos) || 0,
-      };
-
-      setCarteira({
-        data: dados.data || new Date().toISOString().split("T")[0],
-        total: posicoesMap.length,
-        posicoes: posicoesMap,
-        resumo,
+      })
+      .catch((e) => {
+        setErro(
+          e?.response?.data?.erro ||
+            "Não foi possível carregar a carteira. O backend está rodando na 8901?",
+        );
+        setCarregando(false);
       });
-      setCarregando(false);
-    }).catch((_e) => {
-      setErro("Erro ao carregar carteira");
-      setCarregando(false);
-    });
   }, []);
 
-  if (carregando) return <div className="loading">Carregando dados da carteira...</div>;
+  React.useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  if (carregando) return <div className="loading">Carregando carteira...</div>;
   if (erro) return <div className="error">Erro: {erro}</div>;
-  if (!carteira) return <div className="loading">Sem dados da carteira</div>;
+  if (!resumo) return <div className="vazio">Sem dados de carteira.</div>;
 
   return (
     <section className="carteira-section">
-      <h2>Resumo da Carteira</h2>
-
-      <div className="resumo-box">
-        <p>Data da consulta: {carteira.data}</p>
-        <p>Total de posições: {carteira.total}</p>
-        <p>Total investido: {decimalMoedaLocal(carteira.resumo.total_investido)}</p>
-        <p>Valor atual: {decimalMoedaLocal(carteira.resumo.valor_atual)}</p>
-        <p>Ganho/Perdas: {decimalMoedaLocal(carteira.resumo.ganho_perda)} ({carteira.resumo.ganho_percentual}%)</p>
+      <div className="secao-topo">
+        <h2>Carteira</h2>
+        <button className="secondary-btn" onClick={carregar}>
+          Atualizar
+        </button>
       </div>
 
-      <div className="alocacao">
-        <h3>Alocação por tipo</h3>
-        <p>Renda fixa: {carteira.resumo.peso_renda_fixa}%</p>
-        <p>Renda variável: {carteira.resumo.peso_renda_variavel}%</p>
-        <p>Fundos: {carteira.resumo.peso_fundos}%</p>
+      <p className="muted">
+        Data-base: <strong>{resumo.as_of}</strong>
+      </p>
+
+      <div className="cards">
+        <div className="card">
+          <span className="card-rotulo">Posições</span>
+          <strong>{resumo.total_posicoes}</strong>
+        </div>
+        <div className="card">
+          <span className="card-rotulo">Custo total</span>
+          <strong>{moeda(resumo.custo_total_geral)}</strong>
+        </div>
+        <div className="card">
+          <span className="card-rotulo">P&amp;L não realizado</span>
+          <strong>
+            {resumo.pnl_total === null ? "—" : moeda(resumo.pnl_total)}
+            {resumo.pnl_total_pct !== null && ` (${numero(resumo.pnl_total_pct)}%)`}
+          </strong>
+        </div>
       </div>
 
-      <div className="posicoes-lista">
-        <h3>Posições ({carteira.posicoes.length})</h3>
-        <table>
+      {resumo.pnl_total === null && (
+        <p className="muted small">
+          P&amp;L fica indisponível enquanto não houver série de preço de mercado para a posição —
+          o número não é estimado.
+        </p>
+      )}
+
+      <h3>Posições</h3>
+      {resumo.posicoes.length === 0 ? (
+        <p className="vazio">
+          Nenhuma posição cadastrada. Registre uma operação em <code>POST /api/v1/carteira/operacoes/</code>.
+        </p>
+      ) : (
+        <table className="tabela">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Nome</th>
-              <th>Tipo</th>
-              <th>Qtd</th>
-              <th>Preço Médio</th>
-              <th>Preço Atual</th>
-              <th>P/L</th>
-              <th>% P/L</th>
+              <th>Ativo</th>
+              <th>Classe</th>
+              <th>Instituição</th>
+              <th>Qtd.</th>
+              <th>Preço médio</th>
+              <th>Custo total</th>
+              <th>Operações</th>
             </tr>
           </thead>
           <tbody>
-            {carteira.posicoes.map((p: Posicao) => (
-              <tr key={p.codigo}>
-                <td>{p.codigo}</td>
-                <td>{p.nome}</td>
-                <td>{p.tipo}</td>
-                <td>{p.quantidade}</td>
-                <td>{decimalMoedaLocal(p.preco_medio)}</td>
-                <td>{decimalMoedaLocal(p.preco_atual)}</td>
-                <td>{decimalMoedaLocal(p.pnl)}</td>
-                <td>{decimalMoedaLocal(p.pnl_percentual)}%</td>
+            {resumo.posicoes.map((p) => (
+              <tr key={`${p.ativo}-${p.instituicao}`}>
+                <td>
+                  <strong>{p.ativo}</strong>
+                </td>
+                <td>{p.classe}</td>
+                <td>{p.instituicao || "—"}</td>
+                <td>{numero(p.quantidade)}</td>
+                <td>{moeda(p.preco_medio)}</td>
+                <td>{moeda(p.custo_total)}</td>
+                <td>{p.operacoes_count}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {carteira.posicoes.length === 0 && <p>Nenhuma posição disponível</p>}
-      </div>
+      )}
 
-      <div className="acoes">
-        <button className="primary-btn">Exportar CSV</button>
-        <button className="secondary-btn">Atualizar</button>
-      </div>
+      <h3>Pesos atuais vs. política</h3>
+      {resumo.pesos_vs_politica.length === 0 ? (
+        <p className="vazio">Nenhuma política de alocação definida.</p>
+      ) : (
+        <table className="tabela">
+          <thead>
+            <tr>
+              <th>Classe</th>
+              <th>Alvo</th>
+              <th>Faixa</th>
+              <th>Atual</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumo.pesos_vs_politica.map((p) => (
+              <tr key={p.classe}>
+                <td>{p.classe}</td>
+                <td>{numero(p.peso_alvo)}%</td>
+                <td>
+                  {numero(p.faixa_min)}% – {numero(p.faixa_max)}%
+                </td>
+                <td>{numero(p.peso_atual)}%</td>
+                <td>
+                  <span className={p.dentro_faixa ? "selo ok" : "selo fora"}>
+                    {p.dentro_faixa ? "dentro" : "fora"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 };
