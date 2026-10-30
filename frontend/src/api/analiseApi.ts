@@ -99,4 +99,16 @@ export const analiseApi = {
   async criarOperacao(payload: Record<string, unknown>) {
     return api.post("/carteira/operacoes/", payload);
   },
+
+  async listDocumentos() {
+    return api.get("/documentos/");
+  },
+
+  async enviarDocumento(payload: Record<string, unknown> | FormData) {
+    return api.post("/documentos/", payload);
+  },
+
+  async promoverDocumento(id: number) {
+    return api.post(`/documentos/${id}/promover/`);
+  },
 };

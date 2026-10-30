@@ -8,8 +8,11 @@ from django.urls import include, path
 
 from investimentos.analise.views import comparar
 
+from .api import api_root
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/v1/", api_root, name="api_root"),
     path("api/v1/", include("investimentos.market_data.urls")),
     path("api/v1/carteira/", include("investimentos.carteira.urls")),
     path("api/v1/analise/", include("investimentos.analise.urls")),

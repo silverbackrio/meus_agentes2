@@ -57,3 +57,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# A interface do sistema é o app React; a API responde **JSON puro**. Sem o
+# BrowsableAPIRenderer, abrir /api/v1/... no navegador devolve JSON com 405/200
+# em vez da página HTML do DRF sem estilo. Form e multipart continuam aceitos
+# para o upload de documento (POST com arquivo).
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
+}

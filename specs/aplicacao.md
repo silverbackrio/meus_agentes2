@@ -292,6 +292,24 @@ inclui. Todo documento guarda o texto lido para auditoria e reprocessamento.
 6. Dossiês e `/comparar`, com os avisos de compliance renderizados.
 7. `infra-linux`: gunicorn + nginx + túnel, só depois de haver tela para servir.
 
+## Pendências abertas (registradas em 30/10/2026)
+
+Priorizadas pelo usuário. Nenhuma entra em código antes da regra na spec da classe.
+
+1. **IR e IOF automáticos por classe e prazo.** Hoje o valor é informado no evento. Falta a
+   regra por faixa de prazo (renda fixa, Lei 11.033/2004), por classe (ações 15%, FII isento
+   para PF, come-cotas em fundo) com data de vigência e teste dourado.
+2. **Edição e exclusão de posição.** O cadastro manual cria e `encerramento` dá baixa; não há
+   correção de atributo/quantidade nem exclusão com rastro.
+3. **OCR de documento digitalizado.** PDF só-imagem é recusado com `422`. OCR exige
+   `tesseract` no sistema — quebra a P2 — e precisa de decisão explícita.
+4. **Conciliação documento ↔ posição.** Promover cria posição nova quando o ativo não existe;
+   falta a tela que casa lançamento com posição já cadastrada antes de gravar.
+5. **P&L com preço de mercado.** Depende de série de preço por ativo em `market_data`.
+6. **Layout da API — resolvido em 30/10/2026.** O DRF não serve mais a página “browsable
+   API” sem estilo: a API é JSON puro e `/api/v1/` devolve o índice das rotas. A interface do
+   sistema é o app React.
+
 ## Critérios de aceite
 
 - [ ] `uv sync && pytest` verdes na faixa `>=3.12,<3.15`, com Python informado no início da tarefa.

@@ -1,7 +1,7 @@
 // @codebuff fix: default export para main.tsx
 import React from "react";
 import "./App.css";
-import { BrowserRouter as Router, Routes, Route, Link, Outlet } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, Outlet, Navigate } from "react-router-dom";
 import { analiseApi } from "./api/analiseApi";
 
 import { SimulatorComponent } from "./components/Simulator/Simulator";
@@ -12,6 +12,7 @@ import { Dados } from "./components/Dados/Dados";
 import { Carteira } from "./components/Carteira/Carteira";
 import { Comparar } from "./components/Comparar/Comparar";
 import { CadastroPosicao } from "./components/Carteira/CadastroPosicao";
+import { Documentos } from "./components/Documentos/Documentos";
 
 const analise = analiseApi;
 
@@ -42,6 +43,7 @@ export default function App() {
           <li><Link to="/dados">Dados</Link></li>
           <li><Link to="/carteira">Carteira</Link></li>
           <li><Link to="/comparar">Comparar</Link></li>
+          <li><Link to="/documentos">Documentos</Link></li>
         </ul>
       </nav>
 
@@ -60,6 +62,8 @@ export default function App() {
           <Route path="/carteira" element={<Carteira />} />
           <Route path="/carteira/nova" element={<CadastroPosicao />} />
           <Route path="/comparar" element={<Comparar />} />
+          <Route path="/documentos" element={<Documentos />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </Router>
