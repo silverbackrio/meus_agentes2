@@ -7,6 +7,9 @@ import { analiseApi } from "./api/analiseApi";
 import { SimulatorComponent } from "./components/Simulator/Simulator";
 import { MetricasList } from "./components/Metricas/MetricasList";
 import { DossiesList } from "./components/Dossies/DossiesList";
+import { Painel } from "./components/Painel/Painel";
+import { Dados } from "./components/Dados/Dados";
+import { Carteira } from "./components/Carteira/Carteira";
 
 const analise = analiseApi;
 
@@ -34,17 +37,17 @@ export default function App() {
 
       <main className="container">
         <Routes>
-          <Route path="/" element={<></>} />
+          <Route path="/" element={<Painel />} />
           <Route path="/analise" element={<></>}>
             <Route index element={<></>} />
             <Route path="simulador" element={<SimulatorComponent />} />
           </Route>
-          <Route path="/dados" element={<></>}>
+          <Route path="/dados" element={<Dados />}>
             <Route index element={<></>} />
             <Route path="metricas" element={<MetricasList />} />
             <Route path="dossies" element={<DossiesList />} />
           </Route>
-          <Route path="/carteira" element={<></>} />
+          <Route path="/carteira" element={<Carteira />} />
           <Route path="/comparar" element={<></>} />
         </Routes>
       </main>
