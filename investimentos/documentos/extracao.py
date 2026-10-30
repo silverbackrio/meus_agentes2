@@ -211,6 +211,81 @@ def _ocr_de_imagem(bruto: bytes) -> str:
     return texto
 
 
+def diagnosticar(bruto: bytes, nome: str = "") -> dict:
+    """Inspeciona o arquivo e devolve o que foi detectado — sem gravar nada.
+
+    Responde à pergunta natural do usuário: "o meu PDF tem o texto que o erro
+    pede?". Mostra tipo, tamanho, páginas, se existe camada de texto e se o OCR
+    está disponível, com a recomendação do caminho que será usado.
+    """
+    sufixo = Path(nome or "").suffix.lower()
+    disponivel, motivo = ocr_disponivel()
+    info: dict = {
+        "nome": nome or "(sem nome)",
+        "tamanho_bytes": len(bruto),
+        "tipo": "desconhecido",
+        "paginas": None,
+        "tem_camada_texto": False,
+        "caracteres_camada": 0,
+        "ocr_disponivel": disponivel,
+        "ocr_motivo": motivo,
+        "texto": "",
+        "recomendacao": "",
+    }
+
+    if _eh_pdf(bruto, sufixo):
+        info["tipo"] = "pdf"
+        info["paginas"] = _paginas_pdf(bruto)
+        texto = _texto_de_pdf(bruto)
+        info["caracteres_camada"] = len(texto)
+        info["tem_camada_texto"] = bool(texto.strip())
+        info["texto"] = texto[:50000]
+        if info["tem_camada_texto"]:
+            info["recomendacao"] = "PDF com camada de texto: será lido direto, sem OCR."
+        elif disponivel:
+            info["recomendacao"] = (
+                "PDF sem camada de texto (digitalizado): será rasterizado a 300 dpi e lido por OCR."
+            )
+        else:
+            info["recomendacao"] = (
+                f"PDF sem camada de texto e OCR indisponível ({motivo}): instale o Tesseract ou cole o texto."
+            )
+        return info
+
+    if _eh_imagem(bruto, sufixo):
+        info["tipo"] = "imagem"
+        info["recomendacao"] = (
+            "Imagem: será lida por OCR."
+            if disponivel
+            else f"Imagem com OCR indisponível ({motivo}): instale o Tesseract ou cole o texto."
+        )
+        return info
+
+    try:
+        texto = _texto_de_bytes(bruto)
+    except ErroExtracao:
+        info["recomendacao"] = "Formato não reconhecido: envie PDF, imagem (PNG/JPEG/TIFF/BMP/WEBP) ou texto."
+        return info
+
+    info["tipo"] = "texto"
+    info["caracteres_camada"] = len(texto)
+    info["tem_camada_texto"] = True
+    info["texto"] = texto[:50000]
+    info["recomendacao"] = "Texto puro: será interpretado direto."
+    return info
+
+
+def _paginas_pdf(bruto: bytes) -> int | None:
+    if find_spec("pypdf") is None:
+        return None
+    try:
+        from pypdf import PdfReader
+
+        return len(PdfReader(io.BytesIO(bruto)).pages)
+    except Exception:
+        return None
+
+
 def _ocr_de_pdf(bruto: bytes) -> str:
     _exigir_ocr()
     try:

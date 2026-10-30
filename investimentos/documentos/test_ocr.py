@@ -105,6 +105,39 @@ class OcrApiTest(TestCase):
         self.assertEqual(ativos, {"BBAS3", "ITUB4F"})
 
 
+class DiagnosticoTest(TestCase):
+    """Diagnóstico responde o que o servidor vê, antes de tentar processar."""
+
+    def test_pdf_digitalizado_mostra_camada_ausente_e_ocr(self):
+        arquivo = SimpleUploadedFile("nota.pdf", _pdf_digitalizado(), content_type="application/pdf")
+
+        resposta = APIClient().post(
+            "/api/v1/documentos/diagnostico/", {"arquivo": arquivo}, format="multipart"
+        )
+
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.assertEqual(resposta.data["tipo"], "pdf")
+        self.assertEqual(resposta.data["paginas"], 1)
+        self.assertFalse(resposta.data["tem_camada_texto"])
+        self.assertIn("OCR", resposta.data["recomendacao"])
+
+    def test_texto_reconhecido_no_diagnostico(self):
+        resposta = APIClient().post(
+            "/api/v1/documentos/diagnostico/", {"texto": "\n".join(LINHAS)}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.assertEqual(resposta.data["layout_detectado"], "nota_corretagem_b3")
+        self.assertTrue(resposta.data["layout_reconhecido"])
+        self.assertIn("BBAS3", resposta.data["previa"])
+
+    def test_diagnostico_sem_conteudo_responde_422(self):
+        resposta = APIClient().post("/api/v1/documentos/diagnostico/", {}, format="json")
+
+        self.assertEqual(resposta.status_code, 422)
+        self.assertEqual(resposta.data["campo"], "arquivo")
+
+
 class OcrIndisponivelTest(SimpleTestCase):
     def test_imagem_sem_binario_falha_com_instrucao(self):
         with (

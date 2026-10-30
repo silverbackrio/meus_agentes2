@@ -6,6 +6,7 @@ from . import views
 
 urlpatterns = [
     path("", views.documentos_list_create, name="documentos_list_create"),
+    path("diagnostico/", views.documento_diagnostico, name="documento_diagnostico"),
     path("<int:documento_id>/", views.documento_detail, name="documento_detail"),
     path("<int:documento_id>/promover/", views.documento_promover, name="documento_promover"),
 ]

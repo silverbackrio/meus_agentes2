@@ -105,7 +105,12 @@ export const analiseApi = {
   },
 
   async enviarDocumento(payload: Record<string, unknown> | FormData) {
-    return api.post("/documentos/", payload);
+    // OCR de página inteira passa dos 10s do timeout padrão.
+    return api.post("/documentos/", payload, { timeout: 180000 });
+  },
+
+  async diagnosticarDocumento(payload: Record<string, unknown> | FormData) {
+    return api.post("/documentos/diagnostico/", payload, { timeout: 60000 });
   },
 
   async promoverDocumento(id: number) {

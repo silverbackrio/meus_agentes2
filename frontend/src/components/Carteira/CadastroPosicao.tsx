@@ -37,6 +37,12 @@ interface Posicao {
   status: string;
 }
 
+interface ErroValidacao {
+  campo: string;
+  mensagem: string;
+  sugestao: string;
+}
+
 type Valor = string | boolean;
 
 const limpar = (obj: Record<string, Valor>) =>
@@ -50,6 +56,7 @@ export const CadastroPosicao = () => {
   const [posicoes, setPosicoes] = React.useState<Posicao[]>([]);
   const [erro, setErro] = React.useState<string | null>(null);
   const [mensagem, setMensagem] = React.useState<string | null>(null);
+  const [errosCampo, setErrosCampo] = React.useState<Record<string, string>>({});
 
   // --- cadastro da posição ---
   const [classeNome, setClasseNome] = React.useState("acoes");
@@ -92,17 +99,65 @@ export const CadastroPosicao = () => {
   const posicaoAtual = posicoes.find((item) => String(item.id) === posicaoId);
   const classeDaPosicao = esquema?.classes.find((item) => item.nome === posicaoAtual?.classe);
 
+  const focar = (campo: string) => {
+    const elemento = document.getElementById(campo);
+    if (elemento) {
+      elemento.scrollIntoView({ behavior: "smooth", block: "center" });
+      (elemento as HTMLInputElement).focus();
+    }
+  };
+
+  /** Aplica a resposta 422 do backend: mostra TODOS os campos reclamados, por nome. */
+  const aplicarErrosDoServidor = (corpo: any) => {
+    const lista: ErroValidacao[] = Array.isArray(corpo?.erros) ? corpo.erros : [];
+    if (lista.length === 0) {
+      setErro(`${corpo?.erro ?? "Entrada inválida"} ${corpo?.sugestao ? `— ${corpo.sugestao}` : ""}`.trim());
+      return;
+    }
+    const mapa: Record<string, string> = {};
+    for (const item of lista) mapa[item.campo] = item.mensagem;
+    setErrosCampo(mapa);
+    const nomes = lista.map((item) => `${item.campo} (${item.mensagem})`).join(" · ");
+    setErro(`Falta preencher ou corrigir: ${nomes}`);
+    focar(lista[0].campo);
+  };
+
   const trocarClasse = (nome: string) => {
     setClasseNome(nome);
     setAtributos({});
+    setErrosCampo({});
     setMensagem(null);
     setErro(null);
+  };
+
+  const obrigatoriosFaltando = () => {
+    const faltas: { campo: string; rotulo: string }[] = [];
+    if (!ativo.trim()) faltas.push({ campo: "ativo", rotulo: "Ativo" });
+    for (const campo of classeAtual?.campos ?? []) {
+      if (!campo.obrigatorio || campo.tipo === "booleano") continue;
+      const valor = atributos[campo.nome];
+      if (valor === undefined || String(valor).trim() === "") {
+        faltas.push({ campo: campo.nome, rotulo: campo.rotulo });
+      }
+    }
+    return faltas;
   };
 
   const cadastrarPosicao = (eventoForm: React.FormEvent) => {
     eventoForm.preventDefault();
     setErro(null);
     setMensagem(null);
+    setErrosCampo({});
+
+    // Validação local: diz exatamente qual campo falta, antes de chamar a API.
+    const faltas = obrigatoriosFaltando();
+    if (faltas.length > 0) {
+      setErrosCampo(Object.fromEntries(faltas.map((item) => [item.campo, "Preencha este campo"])));
+      setErro(`Faltou preencher: ${faltas.map((item) => item.rotulo).join(", ")}.`);
+      focar(faltas[0].campo);
+      return;
+    }
+
     analiseApi
       .criarPosicao({
         ativo,
@@ -122,14 +177,27 @@ export const CadastroPosicao = () => {
         setAtributos({});
         carregarPosicoes();
       })
-      .catch((e) => setErro(e?.response?.data?.erro || "Não foi possível cadastrar a posição."));
+      .catch((e) => aplicarErrosDoServidor(e?.response?.data));
   };
 
   const registrarEvento = (eventoForm: React.FormEvent) => {
     eventoForm.preventDefault();
     setErro(null);
     setMensagem(null);
+    setErrosCampo({});
     setResultado(null);
+
+    const faltas: { campo: string; rotulo: string }[] = [];
+    if (!posicaoId) faltas.push({ campo: "posicao", rotulo: "Posição" });
+    if (!dataEvento) faltas.push({ campo: "data_evento", rotulo: "Data do evento" });
+    if (!valorEvento.trim()) faltas.push({ campo: "valor_evento", rotulo: "Valor do evento" });
+    if (faltas.length > 0) {
+      setErrosCampo(Object.fromEntries(faltas.map((item) => [item.campo, "Preencha este campo"])));
+      setErro(`Faltou preencher: ${faltas.map((item) => item.rotulo).join(", ")}.`);
+      focar(faltas[0].campo);
+      return;
+    }
+
     const custosInformados = Object.fromEntries(Object.entries(custos).filter(([, valor]) => valor !== ""));
     analiseApi
       .criarOperacao({
@@ -151,23 +219,22 @@ export const CadastroPosicao = () => {
         setCustos({});
         carregarPosicoes();
       })
-      .catch((e) => {
-        const dados = e?.response?.data;
-        setErro(
-          dados
-            ? `${dados.erro ?? "Entrada inválida"} — ${dados.sugestao ?? ""}`
-            : "Não foi possível registrar o evento.",
-        );
-      });
+      .catch((e) => aplicarErrosDoServidor(e?.response?.data));
   };
+
+  const invalido = (campo: string) => (errosCampo[campo] ? "invalido" : undefined);
+
+  const mensagemCampo = (campo: string) =>
+    errosCampo[campo] ? <small className="erro-campo">{errosCampo[campo]}</small> : null;
 
   const renderCampo = (campo: CampoSchema) => {
     const valor = atributos[campo.nome];
 
     if (campo.tipo === "booleano") {
       return (
-        <label className="campo-check" key={campo.nome}>
+        <label className="campo-check" key={campo.nome} htmlFor={campo.nome}>
           <input
+            id={campo.nome}
             type="checkbox"
             checked={Boolean(valor)}
             onChange={(e) => setAtributos({ ...atributos, [campo.nome]: e.target.checked })}
@@ -180,14 +247,15 @@ export const CadastroPosicao = () => {
 
     if (campo.tipo === "opcao") {
       return (
-        <label key={campo.nome}>
+        <label key={campo.nome} htmlFor={campo.nome}>
           <span>
             {campo.rotulo}
             {campo.obrigatorio ? " *" : ""}
           </span>
           <select
+            id={campo.nome}
+            className={invalido(campo.nome)}
             value={String(valor ?? "")}
-            required={campo.obrigatorio}
             onChange={(e) => setAtributos({ ...atributos, [campo.nome]: e.target.value })}
           >
             <option value="">selecione</option>
@@ -197,25 +265,28 @@ export const CadastroPosicao = () => {
               </option>
             ))}
           </select>
+          {mensagemCampo(campo.nome)}
           {campo.ajuda && <small className="ajuda">{campo.ajuda}</small>}
         </label>
       );
     }
 
     return (
-      <label key={campo.nome}>
+      <label key={campo.nome} htmlFor={campo.nome}>
         <span>
           {campo.rotulo}
           {campo.obrigatorio ? " *" : ""}
           {campo.unidade ? <em className="unidade"> ({campo.unidade})</em> : null}
         </span>
         <input
+          id={campo.nome}
+          className={invalido(campo.nome)}
           type={campo.tipo === "data" ? "date" : "text"}
           inputMode={campo.tipo === "texto" ? undefined : "decimal"}
           value={String(valor ?? "")}
-          required={campo.obrigatorio}
           onChange={(e) => setAtributos({ ...atributos, [campo.nome]: e.target.value })}
         />
+        {mensagemCampo(campo.nome)}
         {campo.ajuda && <small className="ajuda">{campo.ajuda}</small>}
       </label>
     );
@@ -227,17 +298,17 @@ export const CadastroPosicao = () => {
     <section className="cadastro-section">
       <h2>Cadastrar posição</h2>
       <p className="muted">
-        Os campos abaixo mudam com a classe: é o esquema do backend que define o que cada
-        investimento precisa para ser controlado até a baixa.
+        Os campos mudam com a classe — é o esquema do backend que define o que cada investimento
+        precisa para ser controlado até a baixa. Os campos com <strong>*</strong> são obrigatórios.
       </p>
 
       {erro && <div className="error">Erro: {erro}</div>}
       {mensagem && <div className="sucesso">{mensagem}</div>}
 
-      <form className="form-cadastro" onSubmit={cadastrarPosicao}>
-        <label>
+      <form className="form-cadastro" onSubmit={cadastrarPosicao} noValidate>
+        <label htmlFor="classe">
           <span>Classe do investimento *</span>
-          <select value={classeNome} onChange={(e) => trocarClasse(e.target.value)}>
+          <select id="classe" value={classeNome} onChange={(e) => trocarClasse(e.target.value)}>
             {esquema.classes.map((item) => (
               <option key={item.nome} value={item.nome}>
                 {item.rotulo}
@@ -249,41 +320,56 @@ export const CadastroPosicao = () => {
         {classeAtual?.nota && <p className="nota-classe">{classeAtual.nota}</p>}
 
         <div className="form-grid">
-          <label>
+          <label htmlFor="ativo">
             <span>Ativo *</span>
             <input
+              id="ativo"
+              className={invalido("ativo")}
               type="text"
               value={ativo}
-              required
               placeholder="ex: BBAS3, CDB Banco A 2028, Fundo XYZ"
               onChange={(e) => setAtivo(e.target.value)}
             />
+            {mensagemCampo("ativo")}
           </label>
-          <label>
+          <label htmlFor="instituicao">
             <span>Instituição / corretora</span>
-            <input type="text" value={instituicao} onChange={(e) => setInstituicao(e.target.value)} />
+            <input
+              id="instituicao"
+              type="text"
+              value={instituicao}
+              onChange={(e) => setInstituicao(e.target.value)}
+            />
           </label>
-          <label>
+          <label htmlFor="quantidade">
             <span>Quantidade</span>
             <input
+              id="quantidade"
+              className={invalido("quantidade")}
               type="text"
               inputMode="decimal"
               value={quantidade}
+              placeholder="ex: 100 ou 1.000,50"
               onChange={(e) => setQuantidade(e.target.value)}
             />
+            {mensagemCampo("quantidade")}
           </label>
-          <label>
+          <label htmlFor="preco_medio">
             <span>Preço médio / custo unitário</span>
             <input
+              id="preco_medio"
+              className={invalido("preco_medio")}
               type="text"
               inputMode="decimal"
               value={precoMedio}
+              placeholder="ex: 32,50"
               onChange={(e) => setPrecoMedio(e.target.value)}
             />
+            {mensagemCampo("preco_medio")}
           </label>
-          <label>
+          <label htmlFor="data_entrada">
             <span>Data de entrada</span>
-            <input type="date" value={dataEntrada} onChange={(e) => setDataEntrada(e.target.value)} />
+            <input id="data_entrada" type="date" value={dataEntrada} onChange={(e) => setDataEntrada(e.target.value)} />
           </label>
         </div>
 
@@ -304,13 +390,14 @@ export const CadastroPosicao = () => {
       {posicoes.length === 0 ? (
         <p className="vazio">Nenhuma posição cadastrada ainda.</p>
       ) : (
-        <form className="form-cadastro" onSubmit={registrarEvento}>
+        <form className="form-cadastro" onSubmit={registrarEvento} noValidate>
           <div className="form-grid">
-            <label>
+            <label htmlFor="posicao">
               <span>Posição *</span>
               <select
+                id="posicao"
+                className={invalido("posicao")}
                 value={posicaoId}
-                required
                 onChange={(e) => {
                   setPosicaoId(e.target.value);
                   const alvo = posicoes.find((item) => String(item.id) === e.target.value);
@@ -325,10 +412,11 @@ export const CadastroPosicao = () => {
                   </option>
                 ))}
               </select>
+              {mensagemCampo("posicao")}
             </label>
-            <label>
+            <label htmlFor="evento">
               <span>Evento *</span>
-              <select value={evento} required onChange={(e) => setEvento(e.target.value)}>
+              <select id="evento" value={evento} onChange={(e) => setEvento(e.target.value)}>
                 {(classeDaPosicao?.eventos ?? []).map((item) => (
                   <option key={item.nome} value={item.nome}>
                     {item.rotulo}
@@ -336,28 +424,33 @@ export const CadastroPosicao = () => {
                 ))}
               </select>
             </label>
-            <label>
+            <label htmlFor="data_evento">
               <span>Data *</span>
               <input
+                id="data_evento"
+                className={invalido("data_evento")}
                 type="date"
                 value={dataEvento}
-                required
                 onChange={(e) => setDataEvento(e.target.value)}
               />
+              {mensagemCampo("data_evento")}
             </label>
-            <label>
+            <label htmlFor="valor_evento">
               <span>Valor do evento (R$) *</span>
               <input
+                id="valor_evento"
+                className={invalido("valor_evento")}
                 type="text"
                 inputMode="decimal"
                 value={valorEvento}
-                required
                 onChange={(e) => setValorEvento(e.target.value)}
               />
+              {mensagemCampo("valor_evento")}
             </label>
-            <label>
+            <label htmlFor="quantidade_evento">
               <span>Quantidade</span>
               <input
+                id="quantidade_evento"
                 type="text"
                 inputMode="decimal"
                 value={quantidadeEvento}
@@ -369,14 +462,17 @@ export const CadastroPosicao = () => {
           <h3>Custos e impostos (R$)</h3>
           <div className="form-grid">
             {esquema.custos.map((campo) => (
-              <label key={campo.nome}>
+              <label key={campo.nome} htmlFor={`custo_${campo.nome}`}>
                 <span>{campo.rotulo}</span>
                 <input
+                  id={`custo_${campo.nome}`}
+                  className={invalido(campo.nome)}
                   type="text"
                   inputMode="decimal"
                   value={custos[campo.nome] ?? ""}
                   onChange={(e) => setCustos({ ...custos, [campo.nome]: e.target.value })}
                 />
+                {mensagemCampo(campo.nome)}
               </label>
             ))}
           </div>

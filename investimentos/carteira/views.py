@@ -75,13 +75,17 @@ def _erro_validacao(erros: list[dict]):
 
 
 def _numero(valor) -> Decimal | None:
-    """Converte entrada numérica simples; `None` quando não é número."""
+    """Converte entrada numérica aceitando pt-BR ("1.234,56") e en-US ("1234.56")."""
     if valor in (None, ""):
         return None
+    texto = str(valor).strip()
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
     try:
-        return Decimal(str(valor).replace(",", "."))
+        numero = Decimal(texto)
     except (InvalidOperation, ValueError):
         return None
+    return numero if numero.is_finite() else None
 
 
 def _campo_json(item: Campo) -> dict:
@@ -128,7 +132,8 @@ def posicoes_list_create(request):
     if request.method == "GET":
         return Response(PosicaoSerializer(Posicao.objects.all(), many=True).data)
 
-    dados = request.data if isinstance(request.data, dict) else {}
+    # `QueryDict` (form/multipart) também tem `.get`; só o JSON é dict puro.
+    dados = request.data if hasattr(request.data, "get") else {}
     ativo = str(dados.get("ativo") or "").strip()
     classe_nome = str(dados.get("classe") or "acoes").strip()
 
@@ -139,8 +144,16 @@ def posicoes_list_create(request):
     if erros:
         return _erro_validacao(erros)
 
-    quantidade = _numero(dados.get("quantidade")) or _ZERO
-    preco_medio = _numero(dados.get("preco_medio")) or _ZERO
+    quantidade_bruta = dados.get("quantidade")
+    preco_bruto = dados.get("preco_medio")
+    quantidade = _numero(quantidade_bruta)
+    preco_medio = _numero(preco_bruto)
+    if quantidade is None and quantidade_bruta not in (None, ""):
+        return _erro("quantidade: não é um número válido", "Use apenas dígitos e vírgula decimal (ex: 1500,00).")
+    if preco_medio is None and preco_bruto not in (None, ""):
+        return _erro("preco_medio: não é um número válido", "Use apenas dígitos e vírgula decimal (ex: 32,50).")
+    quantidade = quantidade or _ZERO
+    preco_medio = preco_medio or _ZERO
     if quantidade < _ZERO or preco_medio < _ZERO:
         return _erro("quantidade: não pode ser negativa", "Informe quantidade e preço médio maiores ou iguais a zero.")
 
@@ -275,7 +288,7 @@ def operacao_create(request):
     Não calcula preço médio aqui — apenas grava. O cálculo acontece na leitura
     (GET /carteira/resumo/) usando analise/calculos.py (princípio P3).
     """
-    dados = request.data if isinstance(request.data, dict) else {}
+    dados = request.data if hasattr(request.data, "get") else {}
 
     obrigatorios = {
         "evento": dados.get("evento"),
