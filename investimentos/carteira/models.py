@@ -196,6 +196,7 @@ class Operacao(models.Model):
     )
     data = models.DateField()
     valor = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    quantidade = models.DecimalField(max_digits=20, decimal_places=8, default=0)
     base_de_calculo = models.CharField(max_length=50, default="")
     aliquota_ir = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     ir_ja_retido = models.DecimalField(max_digits=12, decimal_places=2, default=0)

@@ -9,8 +9,6 @@ monta o envelope datado da R2 (``valor`` + ``unidade`` + ``data_base``/``as_of``
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-ZERO = Decimal("0")
-
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -22,6 +20,8 @@ from .serializers import (
     DossieSerializer,
     MetricaSerializer,
 )
+
+ZERO = Decimal("0")
 
 # Casas decimais na borda (arredondamento só aqui, nunca no meio da conta — R5).
 _EXP_MOEDA = Decimal("0.01")
@@ -125,7 +125,11 @@ def simular(request):
             preco_nova_compra=obrigatorios["preco_nova_compra"],
             preco_atual_tela=dados.get("preco_atual_tela"),
             proventos_12m_por_acao=dados.get("proventos_12m_por_acao"),
-            jcp_anual_por_acao=dados.get("jcp_anual_por_acao") if dados.get("jcp_anual_por_acao") not in (None, "") else ZERO,
+            jcp_anual_por_acao=(
+                dados.get("jcp_anual_por_acao")
+                if dados.get("jcp_anual_por_acao") not in (None, "")
+                else ZERO
+            ),
         )
     except ValueError as exc:
         mensagem = str(exc)
@@ -179,7 +183,11 @@ def simular(request):
                 resultado["projecao_renda_passiva"], f"{moeda}/ano", _EXP_MOEDA
             ),
             "jcp_anual_por_acao": bloco(
-                Decimal(str(obrigatorios["jcp_anual_por_acao"])) if obrigatorios["jcp_anual_por_acao"] not in (None, "") else ZERO,
+                (
+                    Decimal(str(obrigatorios["jcp_anual_por_acao"]))
+                    if obrigatorios["jcp_anual_por_acao"] not in (None, "")
+                    else ZERO
+                ),
                 f"{moeda}/ação/ano",
                 _EXP_MOEDA,
             ),

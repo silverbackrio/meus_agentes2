@@ -40,6 +40,7 @@ class OperacaoSerializer(serializers.ModelSerializer):
             "evento",
             "data",
             "valor",
+            "quantidade",
             "base_de_calculo",
             "aliquota_ir",
             "ir_ja_retido",

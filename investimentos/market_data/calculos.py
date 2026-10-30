@@ -4,8 +4,8 @@ Funções puras para cálculo de gaps, frequência e validação de séries hist
 Todas as funções aceitam e retornam Decimal para consistência com o resto do projeto
 (regra R5 de specs/aplicacao.md)."""
 
-from decimal import Decimal, InvalidOperation
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 ZERO = Decimal("0")
 
