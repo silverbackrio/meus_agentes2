@@ -1,17 +1,32 @@
-"""Extração de texto de documento recebido (PDF ou texto puro).
+"""Extração de texto de documento recebido (texto, PDF ou imagem).
 
-Regra P5 (`specs/aplicacao.md`): o parser de domínio não depende de pacote de
-terceiro. O PDF é o único formato que exige biblioteca, e ela entra como
-dependência **opcional** — sem `pypdf` instalado o endpoint continua aceitando
-o texto da nota, e o erro diz exatamente o que fazer.
+Três caminhos, nesta ordem:
 
-OCR de imagem não entra na v1: exigiria `tesseract` no sistema, o que quebra a
-portabilidade da P2 e não pode ser verificado aqui. Fica declarado como
-limitação, não como suposição.
+1. TXT/CSV → decodifica em UTF-8 (com fallback latin-1).
+2. PDF → camada de texto via `pypdf`. Se a página não tiver texto (documento
+   digitalizado), rasteriza com `pypdfium2` e passa cada página pelo OCR.
+3. Imagem (PNG/JPEG/TIFF/BMP/WEBP) → OCR direto.
+
+O OCR usa `pytesseract` + o binário `tesseract`. O binário **não** é uma
+dependência Python: é procurado em `TESSERACT_CMD`, no `PATH` e no prefixo local
+`~/ocr/env/bin/tesseract` (instalação sem root via micromamba). Faltando
+qualquer peça, o erro diz exatamente o que instalar — o sistema nunca finge que
+leu o documento.
+
+P5/R13: `pypdf`, `pypdfium2`, `pytesseract` e `Pillow` são dependências
+**opcionais** de leitura de arquivo, listadas em `requirements-ocr.txt`. O parser
+de domínio continua sem terceiro: ele recebe texto e devolve lançamentos.
 """
 
 import io
+import os
+import shutil
+from importlib.util import find_spec
 from pathlib import Path
+
+# Rasterização em 300 dpi: abaixo disso o Tesseract perde dígito em tabela densa.
+_DPI_OCR = 300
+_CONFIG_OCR = "--psm 6"  # bloco uniforme de texto — preserva a linha da nota
 
 
 class ErroExtracao(ValueError):
@@ -24,16 +39,70 @@ class ErroExtracao(ValueError):
         self.sugestao = sugestao
 
 
+def comando_tesseract() -> str | None:
+    """Localiza o binário do Tesseract sem depender de instalação no sistema."""
+    candidatos = (
+        os.environ.get("TESSERACT_CMD"),
+        shutil.which("tesseract"),
+        str(Path.home() / "ocr" / "env" / "bin" / "tesseract"),
+    )
+    for candidato in candidatos:
+        if candidato and Path(candidato).is_file():
+            return candidato
+    return None
+
+
+def ocr_disponivel() -> tuple[bool, str]:
+    """Diz se o OCR pode rodar agora: `(disponível, motivo quando não está)`."""
+    faltando = []
+    if find_spec("pytesseract") is None:
+        faltando.append("pytesseract")
+    if find_spec("PIL") is None:
+        faltando.append("Pillow")
+    if comando_tesseract() is None:
+        faltando.append("binário tesseract")
+    if faltando:
+        return False, "faltando: " + ", ".join(faltando)
+    return True, ""
+
+
 def extrair_texto(arquivo, nome: str = "") -> str:
-    """Devolve o texto do documento enviado (PDF com camada de texto ou txt)."""
+    """Devolve o texto do documento enviado (texto, PDF — com ou sem camada — ou imagem)."""
     bruto = arquivo.read() if hasattr(arquivo, "read") else bytes(arquivo)
     if not bruto:
         raise ErroExtracao("arquivo", "arquivo vazio", "Reenvie o documento com conteúdo.")
 
     sufixo = Path(nome or getattr(arquivo, "name", "") or "").suffix.lower()
-    if sufixo == ".pdf" or bruto[:4] == b"%PDF":
-        return _texto_de_pdf(bruto)
+
+    if _eh_pdf(bruto, sufixo):
+        texto = _texto_de_pdf(bruto)
+        if texto.strip():
+            return texto
+        return _ocr_de_pdf(bruto)
+
+    if _eh_imagem(bruto, sufixo):
+        return _ocr_de_imagem(bruto)
+
     return _texto_de_bytes(bruto)
+
+
+def _eh_pdf(bruto: bytes, sufixo: str) -> bool:
+    return sufixo == ".pdf" or bruto[:4] == b"%PDF"
+
+
+_MAGIC_IMAGEM = (
+    (b"\x89PNG\r\n\x1a\n", ""),
+    (b"\xff\xd8\xff", ""),
+    (b"II*\x00", ""),
+    (b"MM\x00*", ""),
+    (b"BM", ""),
+)
+
+
+def _eh_imagem(bruto: bytes, sufixo: str) -> bool:
+    if sufixo in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}:
+        return True
+    return any(bruto.startswith(assinatura) for assinatura, _ in _MAGIC_IMAGEM)
 
 
 def _texto_de_bytes(bruto: bytes) -> str:
@@ -45,35 +114,135 @@ def _texto_de_bytes(bruto: bytes) -> str:
     raise ErroExtracao(
         "arquivo",
         "não consegui decodificar o arquivo como texto",
-        "Envie um .txt em UTF-8, um PDF com camada de texto, ou cole o texto da nota.",
+        "Envie um .txt em UTF-8, um PDF (com texto ou digitalizado) ou uma imagem da nota.",
     )
 
 
 def _texto_de_pdf(bruto: bytes) -> str:
+    """Texto da camada do PDF; vazio quando o PDF é digitalizado ou falta `pypdf`."""
+    if find_spec("pypdf") is None:
+        return ""
     try:
         from pypdf import PdfReader
-    except ImportError as exc:
-        raise ErroExtracao(
-            "arquivo",
-            "PDF precisa da dependência opcional 'pypdf', que não está instalada",
-            "Instale com `uv pip install pypdf` ou envie o texto da nota no campo 'texto'.",
-        ) from exc
+
+        leitor = PdfReader(io.BytesIO(bruto))
+        return "\n".join((pagina.extract_text() or "") for pagina in leitor.pages).strip()
+    except Exception:  # PDF corrompido cai no OCR, que dá o erro definitivo
+        return ""
+
+
+def _exigir_ocr() -> None:
+    disponivel, motivo = ocr_disponivel()
+    if disponivel:
+        import pytesseract
+
+        comando = comando_tesseract()
+        if comando:
+            pytesseract.pytesseract.tesseract_cmd = comando
+        return
+
+    raise ErroExtracao(
+        "arquivo",
+        f"o documento precisa de OCR e o OCR não está disponível ({motivo})",
+        "Instale as dependências Python com `pip install -r requirements-ocr.txt` e o binário "
+        "sem root com `micromamba create -y -p ~/ocr/env -c conda-forge tesseract` "
+        "(ou defina TESSERACT_CMD apontando para o executável).",
+    )
+
+
+def _idiomas_ocr() -> tuple[str, ...]:
+    """Prefere português; cai para inglês se o traineddata `por` não existir."""
+    import pytesseract
 
     try:
-        leitor = PdfReader(io.BytesIO(bruto))
-        paginas = [(pagina.extract_text() or "") for pagina in leitor.pages]
-    except Exception as exc:  # PDF corrompido é erro de entrada, não bug do app
+        instalados = set(pytesseract.get_languages(config=""))
+    except Exception:
+        return ("eng",)
+    if "por" in instalados and "eng" in instalados:
+        return ("por+eng", "eng")
+    if "por" in instalados:
+        return ("por", "eng")
+    return ("eng",)
+
+
+def _ocr_pil(imagem) -> str:
+    import pytesseract
+
+    if imagem.mode not in {"L", "RGB"}:
+        imagem = imagem.convert("RGB")
+
+    ultimo_erro: Exception | None = None
+    for idioma in _idiomas_ocr():
+        try:
+            return pytesseract.image_to_string(imagem, lang=idioma, config=_CONFIG_OCR)
+        except pytesseract.TesseractError as exc:  # idioma ausente, binário quebrado
+            ultimo_erro = exc
+    raise ErroExtracao(
+        "arquivo",
+        f"o OCR não conseguiu processar a imagem ({ultimo_erro})",
+        "Verifique se o tesseract tem o traineddata do idioma ou cole o texto da nota.",
+    )
+
+
+def _ocr_de_imagem(bruto: bytes) -> str:
+    _exigir_ocr()
+    try:
+        from PIL import Image
+    except ImportError as exc:  # pragma: no cover - coberto por _exigir_ocr
+        raise ErroExtracao("arquivo", "OCR precisa do Pillow", "pip install -r requirements-ocr.txt") from exc
+
+    try:
+        imagem = Image.open(io.BytesIO(bruto))
+        imagem.load()
+    except Exception as exc:
         raise ErroExtracao(
             "arquivo",
-            f"não consegui ler o PDF ({exc})",
-            "Verifique se o arquivo abre normalmente; se for digitalizado, envie o texto da nota.",
+            f"não consegui abrir a imagem ({exc})",
+            "Envie PNG, JPEG, TIFF, BMP ou WEBP legível.",
         ) from exc
 
-    texto = "\n".join(paginas).strip()
+    texto = _ocr_pil(imagem).strip()
     if not texto:
         raise ErroExtracao(
             "arquivo",
-            "o PDF não tem camada de texto (documento digitalizado)",
-            "OCR ainda não é suportado: envie o texto da nota no campo 'texto'.",
+            "o OCR não encontrou texto legível na imagem",
+            "Envie uma foto mais nítida e sem inclinação, ou cole o texto da nota.",
+        )
+    return texto
+
+
+def _ocr_de_pdf(bruto: bytes) -> str:
+    _exigir_ocr()
+    try:
+        import pypdfium2 as pdfium
+    except ImportError as exc:
+        raise ErroExtracao(
+            "arquivo",
+            "PDF digitalizado precisa de 'pypdfium2' para virar imagem antes do OCR",
+            "Instale as dependências de OCR: `pip install -r requirements-ocr.txt`.",
+        ) from exc
+
+    try:
+        documento = pdfium.PdfDocument(bruto)
+    except Exception as exc:
+        raise ErroExtracao(
+            "arquivo",
+            f"não consegui abrir o PDF ({exc})",
+            "Verifique se o arquivo abre normalmente.",
+        ) from exc
+
+    escala = _DPI_OCR / 72
+    partes: list[str] = []
+    for indice in range(len(documento)):
+        pagina = documento[indice]
+        imagem = pagina.render(scale=escala).to_pil()
+        partes.append(_ocr_pil(imagem))
+
+    texto = "\n".join(parte for parte in partes if parte.strip()).strip()
+    if not texto:
+        raise ErroExtracao(
+            "arquivo",
+            "o OCR não encontrou texto legível no PDF",
+            "Confira a qualidade do documento digitalizado ou cole o texto da nota.",
         )
     return texto

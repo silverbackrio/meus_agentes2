@@ -1,0 +1,22 @@
+# Dependências OPCIONAIS de leitura de documento — OCR de PDF digitalizado e imagem.
+#
+# Justificativa (R13 de specs/aplicacao.md): nenhuma tem equivalente no stdlib.
+#   pypdf       — extrai a camada de texto do PDF.
+#   pypdfium2   — rasteriza a página do PDF digitalizado (PDFium, sem binário externo).
+#   pytesseract — ponte Python para o Tesseract (o binário é instalado à parte).
+#   Pillow      — abre a imagem enviada e converte o bitmap da página.
+# Sem elas o resto do sistema funciona: o endpoint de documento responde 422
+# dizendo o que instalar, e o campo `texto` continua sendo aceito.
+#
+# Instalação sem root (o binário NÃO é pacote Python):
+#   pip install -r requirements-ocr.txt
+#   curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj bin/micromamba -C ~/ocr
+#   ~/ocr/bin/micromamba create -y -p ~/ocr/env -c conda-forge tesseract
+#
+# O código procura o executável em TESSERACT_CMD, no PATH e em
+# ~/ocr/env/bin/tesseract — nessa ordem.
+
+pypdf>=6.21,<7
+pypdfium2>=5.14,<6
+pytesseract>=0.3.13,<0.4
+Pillow>=13.0,<14

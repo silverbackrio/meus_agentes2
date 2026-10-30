@@ -166,8 +166,14 @@ devolve confiança 0–1; abaixo de 0,5 a leitura é **recusada** com `422`, nun
 Regra da venda: `C` vira `aplicacao` (inclusão); `V` vira `venda` e só **reduz** posição
 existente — sem posição cadastrada o lançamento é ignorado com motivo, nunca cria posição.
 
-Limites declarados: PDF exige a dependência **opcional** `pypdf` (sem ela, o endpoint aceita o
-campo `texto`); OCR de imagem digitalizada não entra na v1.
+**Leitura de arquivo (30/10/2026).** TXT/CSV decodifica direto. PDF com camada de texto usa
+`pypdf`; PDF **digitalizado** (sem camada) é rasterizado a 300 dpi com `pypdfium2` e passa por
+OCR, página a página. Imagem (PNG/JPEG/TIFF/BMP/WEBP) vai direto para o OCR. O OCR usa
+`pytesseract` + `Pillow` e o binário `tesseract`, procurado em `TESSERACT_CMD`, no `PATH` e em
+`~/ocr/env/bin/tesseract` — instalação sem root via micromamba, sem exigir pacote de sistema.
+As dependências opcionais estão em `requirements-ocr.txt` (R13: não há alternativa no stdlib
+para visão computacional). Faltando qualquer peça, a resposta é `422` dizendo o que instalar —
+o sistema nunca inventa leitura.
 
 ## Contrato da API — `/api/v1/`
 
@@ -301,8 +307,10 @@ Priorizadas pelo usuário. Nenhuma entra em código antes da regra na spec da cl
    para PF, come-cotas em fundo) com data de vigência e teste dourado.
 2. **Edição e exclusão de posição.** O cadastro manual cria e `encerramento` dá baixa; não há
    correção de atributo/quantidade nem exclusão com rastro.
-3. **OCR de documento digitalizado.** PDF só-imagem é recusado com `422`. OCR exige
-   `tesseract` no sistema — quebra a P2 — e precisa de decisão explícita.
+3. **OCR de documento digitalizado — implementado em 30/10/2026.** PDF sem camada de texto é
+   rasterizado e passa por OCR; imagem também. Dependências opcionais em `requirements-ocr.txt`
+   e binário via micromamba (sem root). Pendente: medir acurácia com notas fotografadas
+   (inclinação, sombra) e acrescentar correção de perspectiva/recorte antes do OCR.
 4. **Conciliação documento ↔ posição.** Promover cria posição nova quando o ativo não existe;
    falta a tela que casa lançamento com posição já cadastrada antes de gravar.
 5. **P&L com preço de mercado.** Depende de série de preço por ativo em `market_data`.
