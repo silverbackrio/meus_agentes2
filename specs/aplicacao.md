@@ -1,6 +1,6 @@
 ---
 status: ativa
-atualizada_em: 2026-10-28
+atualizada_em: 2026-10-30
 ---
 # Spec: Aplicação
 
@@ -158,12 +158,21 @@ Série devolve `unidade`, `frequencia`, `moeda`, `licenca`, `pontos: [[data, val
 | POST | `/analise/simular/` | novo preço médio, YoC e projeção de renda passiva (entrada do usuário, sem gravação) |
 | POST | `/analise/cenarios` | choque por premissa datada, impacto em R$ e % |
 | GET | `/analise/dossies/` · `/analise/dossies/{data}` | dossiês datados |
-| GET | `/comparar?ativos=&base=liquida` | comparação com prazos e base equivalenciados |
+| GET | `/comparar?ativos=&base=liquida` | comparação com prazos e base equivalenciados (ver nota abaixo) |
 
 Erros: envelope `{erro, campo, sugestao}` — `404` série inexistente, `409` divergência de dado
 observado, `422` entrada inválida (falta data-base, unidade ou faixa), `429` cota de fonte
 estourada. **Não existe ingestão por HTTP**: baixar dado é `manage.py ingest`, nunca endpoint
 público.
+
+**Nota do `/comparar` (registrada em 30/10/2026):** os produtos vêm com entrada explícita —
+cada item de `ativos` é `nome|taxa_a_a|prazo_dias|tipo` separado por vírgula (`tipo` =
+`isento` para LCI/LCA/CRI/CRA ou `tributado`), `base` só aceita `liquida` (renda-fixa.md R5) e
+`valor` (VI em BRL) é opcional: sem ele entra a premissa declarada de R$ 10.000,00, que o
+envelope sempre mostra. Prazo menor que 30 dias responde `422` com o motivo do IOF regressivo
+(Decreto 6.306/2007), que o módulo não calcula. O cálculo é função pura em
+`analise/renda_fixa.py` com testes dourados em `analise/tests.py`; a rota fica em
+`/api/v1/comparar/` (nível raiz, fora do prefixo `/analise/`), com variante sem barra final.
 
 ## Páginas (React + Vite)
 

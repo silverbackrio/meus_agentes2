@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import axios from "axios";
+import type { AxiosResponse } from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
 
@@ -50,5 +51,20 @@ export const analiseApi = {
 
   async listDossies() {
     return api.get("/analise/dossies/");
+  },
+
+  async comparar(ativos: string, base: string = "liquida", valor?: number) {
+    const params = new URLSearchParams({
+      ativos,
+      base,
+    });
+    if (valor !== undefined) {
+      params.append("valor", String(valor));
+    }
+    return api.get(`/comparar/?${params.toString()}`);
+  },
+
+  async dossieDetail(data: string) {
+    return api.get(`/dossies/${data}/`);
   },
 };
