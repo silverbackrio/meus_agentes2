@@ -322,3 +322,109 @@ code {
   padding: 1px 5px;
   font-size: 12px;
 }
+
+.acoes-topo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acoes-topo a.primary-btn {
+  text-decoration: none;
+  padding: 6px 12px;
+}
+
+.sucesso {
+  background: #e7f7ec;
+  border: 1px solid #b7e2c4;
+  color: #1c7c3c;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.form-cadastro {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin: 12px 0 24px;
+  background: #fcfcfc;
+}
+
+.form-cadastro h3 {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.form-cadastro label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  align-content: start;
+}
+
+.form-cadastro label .unidade {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-h);
+}
+
+.form-cadastro input,
+.form-cadastro select {
+  font: inherit;
+  font-weight: 400;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-cadastro input:focus,
+.form-cadastro select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.form-cadastro .ajuda {
+  font-weight: 400;
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.form-cadastro button[type="submit"] {
+  justify-self: start;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.campo-check {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  grid-column: 1 / -1;
+}
+
+.campo-check input {
+  width: auto;
+}
+
+.nota-classe {
+  background: #fff8e1;
+  border: 1px solid #f0d99b;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 0;
+}

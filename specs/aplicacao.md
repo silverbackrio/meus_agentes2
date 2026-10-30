@@ -125,7 +125,20 @@ Espelha `specs/dominio-e-fontes.md` e `specs/carteira-e-risco.md`:
 | `Classe` | nome, fator de risco, liquidez, tratamento tributário |
 | `Politica` | classe, peso_alvo, faixa_min, faixa_max, regra_de_rebalanceamento |
 | `Posicao` | ativo, classe, quantidade, custo_medio, moeda, instituição |
-| `Operacao` | evento (aplicacao/resgate/venda/distribuicao/...), data, valor, base_de_calculo, aliquota, imposto_ja_retdo, iof |
+| `Operacao` | evento (aplicacao/venda/resgate/amortizacao/provento/ir_pago/taxa/encerramento), data, valor, custos, custo_total, valor_efeito, base_de_calculo, aliquota, iof |
+
+**Cadastro manual e formulário mutável (30/10/2026).** A posição carrega `atributos`
+(JSON) descritos por `carteira/esquemas.py`: cada classe tem seus próprios campos — CDB pede
+emissor, indexador, taxa, vencimento; fundo pede CNPJ, cota, taxas e come-cotas; ouro pede
+forma e gramatura; previdência pede PGBL/VGBL e regime. O formulário do frontend é **gerado** a
+partir de `GET /carteira/classes/` — classe nova no backend aparece na tela sem alterar o React
+(P4, R4). `carteira/validacao.py` é função pura: valida e normaliza atributo, exige o
+obrigatório da classe, recusa campo de outra classe e recusa evento incompatível (provento em
+CDB). Custos e impostos (corretagem, emolumentos, custódia, IR, IOF, outros) entram
+discriminados em cada operação; `custo_total` e `valor_efeito` são calculados por
+`validacao.efeito_financeiro` — compra soma custo, saída subtrai, provento não soma duas vezes.
+`encerramento` dá baixa na posição (`status=encerrada`, `data_encerramento`) sem apagar o
+histórico.
 
 V1 é **sem login e sem multiusuário**: existe um único dono (`owner` já nasce no schema para a v2
 não exigir migração de dados).
@@ -174,7 +187,9 @@ Série devolve `unidade`, `frequencia`, `moeda`, `licenca`, `pontos: [[data, val
 | GET | `/series/{id}/observacoes/?de=&ate=` | pontos + gaps + proveniência |
 | GET | `/dados/status` | cobertura por série, `fetch_log` do dia, cota consumida |
 | GET | `/carteira/resumo` | posições, custo médio, pesos atuais vs política, P&L com `as_of` |
-| POST | `/carteira/operacoes` | registrar operação (valida evento, data, base de cálculo) |
+| GET | `/carteira/classes` | esquema das classes: campos, obrigatórios, opções, eventos e custos |
+| GET | `/carteira/posicoes` · POST `/carteira/posicoes` | cadastro manual de posição com atributos da classe |
+| POST | `/carteira/operacoes` | registrar operação (evento da classe, data, custos discriminados, IR, base de cálculo) |
 | GET | `/analise/metricas/?periodo=&frequencia=` | valor + fórmula usada + entradas + data-base |
 | POST | `/analise/simular/` | novo preço médio, YoC e projeção de renda passiva (entrada do usuário, sem gravação) |
 | POST | `/analise/cenarios` | choque por premissa datada, impacto em R$ e % |

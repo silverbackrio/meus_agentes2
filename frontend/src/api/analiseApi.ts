@@ -87,4 +87,16 @@ export const analiseApi = {
   async carteiraResumo() {
     return api.get("/carteira/resumo/");
   },
+
+  async carteiraClasses() {
+    return api.get("/carteira/classes/");
+  },
+
+  async criarPosicao(payload: Record<string, unknown>) {
+    return api.post("/carteira/posicoes/", payload);
+  },
+
+  async criarOperacao(payload: Record<string, unknown>) {
+    return api.post("/carteira/operacoes/", payload);
+  },
 };

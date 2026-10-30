@@ -23,6 +23,10 @@ class PosicaoSerializer(serializers.ModelSerializer):
             "preco_medio",
             "moeda",
             "instituicao",
+            "atributos",
+            "status",
+            "data_entrada",
+            "data_encerramento",
             "data_criacao",
         ]
 
@@ -45,6 +49,9 @@ class OperacaoSerializer(serializers.ModelSerializer):
             "aliquota_ir",
             "ir_ja_retido",
             "iof",
+            "custos",
+            "custo_total",
+            "valor_efeito",
             "observacao",
         ]
 

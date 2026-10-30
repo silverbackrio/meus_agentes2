@@ -1,9 +1,11 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { analiseApi } from "../../api/analiseApi";
 
 interface PosicaoResumo {
   ativo: string;
   classe: string;
+  status?: string;
   quantidade: number;
   preco_medio: number;
   custo_total: number;
@@ -76,9 +78,14 @@ export const Carteira = () => {
     <section className="carteira-section">
       <div className="secao-topo">
         <h2>Carteira</h2>
-        <button className="secondary-btn" onClick={carregar}>
-          Atualizar
-        </button>
+        <div className="acoes-topo">
+          <Link className="primary-btn" to="/carteira/nova">
+            + Nova posição
+          </Link>
+          <button className="secondary-btn" onClick={carregar}>
+            Atualizar
+          </button>
+        </div>
       </div>
 
       <p className="muted">
@@ -125,6 +132,7 @@ export const Carteira = () => {
               <th>Qtd.</th>
               <th>Preço médio</th>
               <th>Custo total</th>
+              <th>Situação</th>
               <th>Operações</th>
             </tr>
           </thead>
@@ -139,6 +147,11 @@ export const Carteira = () => {
                 <td>{numero(p.quantidade)}</td>
                 <td>{moeda(p.preco_medio)}</td>
                 <td>{moeda(p.custo_total)}</td>
+                <td>
+                  <span className={p.status === "encerrada" ? "selo fora" : "selo ok"}>
+                    {p.status ?? "ativa"}
+                  </span>
+                </td>
                 <td>{p.operacoes_count}</td>
               </tr>
             ))}

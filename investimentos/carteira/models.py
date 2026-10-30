@@ -149,6 +149,18 @@ class Posicao(BaseModel):
     preco_medio = models.DecimalField(max_digits=20, decimal_places=8, default=0)
     moeda = models.CharField(max_length=10, default="BRL")
     instituicao = models.CharField(max_length=200, blank=True, default="")
+    # Campos próprios da classe (CDB tem indexador/vencimento, fundo tem CNPJ e
+    # taxa, ouro tem gramatura...). O esquema fica em `carteira/esquemas.py` e é
+    # validado por `carteira/validacao.py` antes de gravar — JSON aqui, não 40
+    # colunas nulas, para classe nova não exigir migração (P4).
+    atributos = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[("ativa", "Ativa"), ("encerrada", "Encerrada")],
+        default="ativa",
+    )
+    data_entrada = models.DateField(null=True, blank=True)
+    data_encerramento = models.DateField(null=True, blank=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -200,7 +212,13 @@ class Operacao(models.Model):
     base_de_calculo = models.CharField(max_length=50, default="")
     aliquota_ir = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     ir_ja_retido = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    iof = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    iof = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # Custos do evento discriminados (corretagem, emolumentos, custódia, IR, IOF...).
+    # `custo_total` é a soma e `valor_efeito` é o caixa do evento já com custos —
+    # calculados por `validacao.efeito_financeiro`, nunca na view (R4).
+    custos = models.JSONField(default=dict, blank=True)
+    custo_total = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    valor_efeito = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     observacao = models.TextField(blank=True, default="")
 
     class Meta:

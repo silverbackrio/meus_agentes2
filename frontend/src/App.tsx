@@ -11,6 +11,7 @@ import { Painel } from "./components/Painel/Painel";
 import { Dados } from "./components/Dados/Dados";
 import { Carteira } from "./components/Carteira/Carteira";
 import { Comparar } from "./components/Comparar/Comparar";
+import { CadastroPosicao } from "./components/Carteira/CadastroPosicao";
 
 const analise = analiseApi;
 
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="dossies" element={<DossiesList />} />
           </Route>
           <Route path="/carteira" element={<Carteira />} />
+          <Route path="/carteira/nova" element={<CadastroPosicao />} />
           <Route path="/comparar" element={<Comparar />} />
         </Routes>
       </main>
