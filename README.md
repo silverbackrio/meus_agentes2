@@ -77,6 +77,31 @@ As chaves de API ficam fora do repositório.
 - Crie seu `.env` local a partir desse exemplo.
 - **Nunca commite o `.env` nem cole chaves no chat ou no código.**
 
+### Clientes API
+
+Módulos Python para consulta de dados de mercado (apenas leitura):
+
+| Módulo | Fonte | Chave Obrigatória | Free Tier |
+|--------|-------|-------------------|-----------|
+| `.agents/scripts/brapi_client.py` | Brapi (B3) | `BRAPI_TOKEN` | 15.000 req/mês |
+| `.agents/scripts/bcb_client.py` | Banco Central (SGS/PTAX) | Nenhuma | Ilimitado |
+| `.agents/scripts/alphavantage_client.py` | Alpha Vantage | `ALPHA_VANTAGE_API_KEY` | 25 req/dia |
+
+Todos os módulos seguem o padrão do projeto:
+- **APENAS leitura** — nada é gravado no banco por esses módulos.
+- **Chaves apenas em `.env`** — nunca no código ou repositório (spec R6).
+- **`Decimal`** para valores monetários; `None` para dados ausentes.
+- **Tratamento de erros**: 401, 404, 429 (rate limit com retry/`Retry-After`).
+
+Exemplo de uso (Brapi):
+
+```python
+from brapi_client import quote_symbols
+
+cotacoes = quote_symbols(["PETR4.SA", "VALE3.SA"])
+# Retorna lista de dicts com Decimal, datas ISO, None para nulos
+```
+
 ## Estrutura de conhecimento
 
 - Agentes e skills estão em `.agents/`.
