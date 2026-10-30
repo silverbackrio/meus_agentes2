@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/v1/", include("investimentos.market_data.urls")),
     path("api/v1/carteira/", include("investimentos.carteira.urls")),
     path("api/v1/analise/", include("investimentos.analise.urls")),
+    path("api/v1/documentos/", include("investimentos.documentos.urls")),
     # `/comparar` é de nível raiz no contrato da aplicacao.md (fora do prefixo
     # /analise/), por isso a rota é declarada aqui, no project.
     path("api/v1/comparar/", comparar, name="comparar"),

@@ -96,6 +96,7 @@ raiz/
     market_data/            ← app 1 — séries, observações, payload e fetch_log
     carteira/               ← app 2 — objetivo, perfil, política, posições, operações
     analise/                ← app 3 — cálculos, métricas, cenários, dossiês
+    documentos/             ← app 4 — documento → lançamentos → carteira
   .agents/scripts/          ← ingestão (script CLI, R3)
   frontend/                 ← Vite + React (a criar)
   dados/                    ← coletas datadas e export/ (R10 da fontes-de-dados)
@@ -103,8 +104,9 @@ raiz/
 ```
 
 Regra de dependência: `analise` **lê** `market_data` e `carteira`; `carteira` **lê**
-`market_data`; `market_data` não depende de nenhum outro. Nenhum app importa o frontend, e o
-frontend não importa modelo Django — só JSON da API.
+`market_data`; `documentos` **lê** `carteira` (promoção grava operação); `market_data` não
+depende de nenhum outro. Nenhum app importa o frontend, e o frontend não importa modelo Django
+— só JSON da API.
 
 ## Apps
 
@@ -135,6 +137,25 @@ ativos, texto com fontes). Onde a spec manda cálculo (`renda-fixa.md`, `carteir
 ele vive em módulo Python puro e testável — `analise/calculos.py`, `analise/renda_fixa.py` —
 jamais em view, template ou JavaScript.
 
+### `documentos`
+App reutilizável de leitura de documento: recebe arquivo ou texto, identifica o layout,
+extrai lançamentos e, sob comando explícito, promove para `Posicao`/`Operacao` da carteira.
+
+| Entidade | Campos essenciais |
+|---|---|
+| `Documento` | nome, `sha256` (idempotência), tipo, layout, confiança, status, `as_of`, texto, avisos |
+| `Lancamento` | documento + linha (único), data, ativo, código, lado (C/V), quantidade, preço, valor, operação gerada |
+
+Layouts registrados em `documentos/layouts/` — hoje `nota_corretagem_b3`. Layout novo entra
+como **módulo novo + uma linha no registro**, sem editar o parser existente (P4). O detector
+devolve confiança 0–1; abaixo de 0,5 a leitura é **recusada** com `422`, nunca chutada.
+
+Regra da venda: `C` vira `aplicacao` (inclusão); `V` vira `venda` e só **reduz** posição
+existente — sem posição cadastrada o lançamento é ignorado com motivo, nunca cria posição.
+
+Limites declarados: PDF exige a dependência **opcional** `pypdf` (sem ela, o endpoint aceita o
+campo `texto`); OCR de imagem digitalizada não entra na v1.
+
 ## Contrato da API — `/api/v1/`
 
 Formato único de resposta com número, sem exceção:
@@ -159,6 +180,10 @@ Série devolve `unidade`, `frequencia`, `moeda`, `licenca`, `pontos: [[data, val
 | POST | `/analise/cenarios` | choque por premissa datada, impacto em R$ e % |
 | GET | `/analise/dossies/` · `/analise/dossies/{data}` | dossiês datados |
 | GET | `/comparar?ativos=&base=liquida` | comparação com prazos e base equivalenciados (ver nota abaixo) |
+| GET | `/documentos/` | documentos recebidos com status, layout e lançamentos |
+| POST | `/documentos/` | recebe `arquivo` (PDF/txt) ou `texto` e extrai os lançamentos |
+| GET | `/documentos/{id}/` | documento com os lançamentos extraídos |
+| POST | `/documentos/{id}/promover/` | grava posições e operações na carteira (idempotente) |
 
 Erros: envelope `{erro, campo, sugestao}` — `404` série inexistente, `409` divergência de dado
 observado, `422` entrada inválida (falta data-base, unidade ou faixa), `429` cota de fonte
@@ -233,6 +258,12 @@ antes de existir no código.
 **R13. Dependência nova é justificada e revisada.** O diff entrega a linha: nome, versão, o que
 substitui, quem mantém e por que o stdlib não resolve. Sem isso, o `revisor-de-codigo` devolve.
 Princípios P1–P5 valem aqui.
+
+**R14. Leitura de documento é determinística e conferível.** O que não está escrito no
+documento não é inferido: parser sem confiança mínima recusa (`422`), linha de total não vira
+lançamento, divergência entre quantidade×preço e valor vira **aviso**, não correção silenciosa.
+Promover é idempotente por lançamento e nunca duplica operação; venda sem posição reduz, não
+inclui. Todo documento guarda o texto lido para auditoria e reprocessamento.
 
 ## Ordem de implementação
 

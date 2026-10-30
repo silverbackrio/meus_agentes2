@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "investimentos.market_data",
     "investimentos.carteira",
     "investimentos.analise",
+    "investimentos.documentos",
 ]
 
 MIDDLEWARE = [
